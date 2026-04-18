@@ -3,7 +3,6 @@ import {
   getCategories,
   getCoupons,
   getNavMenuItems,
-  getOrders,
   getProducts,
   getReviews,
   getShippingOptions,
@@ -28,7 +27,6 @@ function seedMap() {
     Review: getReviews(),
     ShippingOption: getShippingOptions(),
     Coupon: getCoupons(),
-    Order: getOrders(),
     NavMenuItem: getNavMenuItems(),
   };
 }
@@ -163,7 +161,6 @@ export const localClient = {
     Review: createEntityApi('Review'),
     ShippingOption: createEntityApi('ShippingOption'),
     Coupon: createEntityApi('Coupon'),
-    Order: createEntityApi('Order'),
     NavMenuItem: createEntityApi('NavMenuItem'),
   },
   auth: {

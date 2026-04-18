@@ -1,6 +1,6 @@
 ﻿import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/localClient';
+import { getOrders, updateOrderStatus } from '@/services/orderService';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,11 +53,18 @@ export default function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [zipping, setZipping] = useState(false);
 
-  const { data: orders, isLoading } = useQuery({ queryKey: ['admin-orders'], queryFn: () => base44.entities.Order.list('-created_date'), initialData: [] });
+  const { data: orders, isLoading, error } = useQuery({
+    queryKey: ['admin-orders'],
+    queryFn: getOrders,
+    initialData: [],
+  });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }) => base44.entities.Order.update(id, { status }),
+    mutationFn: ({ id, status }) => updateOrderStatus(id, status),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-orders'] }),
+    onError: (mutationError) => {
+      console.error('Admin order status update failed:', mutationError);
+    },
   });
 
   const filtered = orders.filter(o => {
@@ -86,6 +93,8 @@ export default function AdminOrders() {
 
       {isLoading ? (
         <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-[#B68AD8]" /></div>
+      ) : error ? (
+        <div className="bg-red-50 text-red-700 rounded-2xl p-4">שגיאה בטעינת ההזמנות</div>
       ) : (
         <div className="bg-white rounded-2xl shadow-sm overflow-x-auto">
           <table className="w-full text-sm">

@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useCart } from '@/components/store/CartContext';
 import { base44 } from '@/api/localClient';
+import { createOrder } from '@/services/orderService';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -72,43 +73,51 @@ export default function Checkout() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
-
-    const orderNum = 'MSB-' + Date.now().toString(36).toUpperCase();
-
-    const orderData = {
-      ...form,
-      order_number: orderNum,
-      items: cart.map(item => ({
+    try {
+      const items = cart.map(item => ({
         product_id: item.product_id,
+        name: item.product_name,
         product_name: item.product_name,
         quantity: item.quantity,
+        price: getDiscountedPrice(item),
         unit_price: getDiscountedPrice(item),
         total_price: getItemTotal(item),
         customizations: item.customizations
-      })),
-      subtotal: cartTotal,
-      shipping_cost: shippingCost,
-      discount_amount: discountAmount,
-      coupon_code: couponCode || '',
-      total: finalTotal,
-      status: 'new'
-    };
+      }));
 
-    const createdOrder = await base44.entities.Order.create(orderData);
-
-    // Send email notification to admin
-    base44.functions.invoke('sendOrderEmail', { order: { ...orderData, id: createdOrder?.id } }).catch(() => {});
-
-    if (appliedCoupon) {
-      await base44.entities.Coupon.update(appliedCoupon.id, {
-        current_uses: (appliedCoupon.current_uses || 0) + 1
+      const createdOrder = await createOrder({
+        customer_name: form.customer_name,
+        phone: form.customer_phone,
+        items,
+        total_price: finalTotal,
+        status: 'new'
       });
-    }
 
-    clearCart();
-    setOrderNumber(orderNum);
-    setOrderComplete(true);
-    setSubmitting(false);
+      base44.functions.invoke('sendOrderEmail', {
+        order: {
+          ...form,
+          ...createdOrder,
+          subtotal: cartTotal,
+          shipping_cost: shippingCost,
+          discount_amount: discountAmount,
+          coupon_code: couponCode || '',
+        }
+      }).catch(() => {});
+
+      if (appliedCoupon) {
+        await base44.entities.Coupon.update(appliedCoupon.id, {
+          current_uses: (appliedCoupon.current_uses || 0) + 1
+        });
+      }
+
+      clearCart();
+      setOrderNumber(createdOrder.order_number);
+      setOrderComplete(true);
+    } catch (error) {
+      console.error('Checkout order submission failed:', error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (orderComplete) {

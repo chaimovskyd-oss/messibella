@@ -81,7 +81,7 @@ export function getReviews() {
 }
 
 export function getOrders() {
-  return readCollection('masibala_local_Order', defaultOrders);
+  return defaultOrders;
 }
 
 export function getNavMenuItems() {

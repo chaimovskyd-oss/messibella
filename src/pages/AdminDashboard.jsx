@@ -1,14 +1,14 @@
 ﻿import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { base44 } from '@/api/localClient';
+import { getOrders } from '@/services/orderService';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ShoppingCart, Package, DollarSign, Users, TrendingUp, Clock } from 'lucide-react';
+import { ShoppingCart, Package, DollarSign, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 import { getProducts } from '@/data/store';
 
 export default function AdminDashboard() {
-  const { data: orders } = useQuery({ queryKey: ['admin-orders'], queryFn: () => base44.entities.Order.list('-created_date'), initialData: [] });
+  const { data: orders, error: ordersError } = useQuery({ queryKey: ['admin-orders'], queryFn: getOrders, initialData: [] });
   const { data: products } = useQuery({ queryKey: ['admin-products'], queryFn: async () => getProducts(), initialData: [] });
 
   const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
@@ -47,6 +47,9 @@ export default function AdminDashboard() {
           <CardTitle>הזמנות אחרונות</CardTitle>
         </CardHeader>
         <CardContent>
+          {ordersError ? (
+            <div className="bg-red-50 text-red-700 rounded-2xl p-4">שגיאה בטעינת ההזמנות</div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -79,6 +82,7 @@ export default function AdminDashboard() {
               </tbody>
             </table>
           </div>
+          )}
         </CardContent>
       </Card>
     </AdminLayout>

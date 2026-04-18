@@ -4,6 +4,7 @@ import { base44 } from '@/api/localClient';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, Package, Clock, Truck, CheckCircle, XCircle } from 'lucide-react';
 import { format } from 'date-fns';
+import { getOrders } from '@/services/orderService';
 
 const statusConfig = {
   new: { label: 'חדש', color: 'bg-blue-100 text-blue-800', icon: Clock },
@@ -23,10 +24,13 @@ export default function MyOrders() {
     });
   }, []);
 
-  const { data: orders, isLoading } = useQuery({
-    queryKey: ['my-orders', user?.email],
-    queryFn: () => base44.entities.Order.filter({ customer_email: user.email }, '-created_date'),
-    enabled: !!user?.email,
+  const { data: orders, isLoading, error } = useQuery({
+    queryKey: ['my-orders', user?.full_name],
+    queryFn: async () => {
+      const allOrders = await getOrders();
+      return allOrders.filter(order => order.customer_name === user?.full_name);
+    },
+    enabled: !!user?.full_name,
     initialData: [],
   });
 
@@ -44,7 +48,9 @@ export default function MyOrders() {
         <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2">ההזמנות שלי</h1>
         <p className="text-gray-500 mb-8">שלום {user.full_name}</p>
 
-        {orders.length === 0 ? (
+        {error ? (
+          <div className="bg-red-50 text-red-700 rounded-2xl p-4">שגיאה בטעינת ההזמנות</div>
+        ) : orders.length === 0 ? (
           <div className="text-center py-20">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <p className="text-gray-500 text-lg">עדיין אין הזמנות</p>
