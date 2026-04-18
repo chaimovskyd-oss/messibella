@@ -40,11 +40,11 @@ function sanitizeAsciiSegment(value, fallback = 'unknown') {
 
 function sanitizePhoneDigits(phone) {
   const digits = String(phone || '').replace(/\D/g, '');
-  return digits || 'unknown';
+  return digits || 'unknown-phone';
 }
 
 function createRandomId() {
-  return crypto.randomUUID().replace(/-/g, '');
+  return crypto.randomUUID();
 }
 
 function buildTemporaryPath(file) {

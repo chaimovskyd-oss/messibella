@@ -46,6 +46,18 @@ function isAssetReference(value) {
   return value && typeof value === 'object' && typeof value.file_url === 'string' && value.file_url.length > 0;
 }
 
+function isLegacyBase64Image(value) {
+  return typeof value === 'string' && value.startsWith('data:image');
+}
+
+function hasLegacyAssetData(customizations) {
+  return Object.values(customizations || {}).some(value => {
+    if (isLegacyBase64Image(value)) return true;
+    if (Array.isArray(value)) return value.some(isLegacyBase64Image);
+    return false;
+  });
+}
+
 function extractAssetLinks(item) {
   const persistedAssets = (item.order_item_assets || []).map(asset => ({
     url: asset.file_url,
@@ -309,6 +321,7 @@ export default function AdminOrders() {
                 <div className="space-y-4">
                   {(selectedOrder.items || []).map(item => {
                     const assetLinks = extractAssetLinks(item);
+                    const hasLegacyAssets = hasLegacyAssetData(item.customizations || {});
                     const nameListEntry = Object.entries(item.customizations || {}).find(([key]) => /רשימת שמות|names/i.test(key));
                     const names = normalizeNameList(nameListEntry?.[1]);
                     const designChoice = extractDesignChoice(item.customizations || {});
@@ -383,6 +396,11 @@ export default function AdminOrders() {
                                     <img src={asset.url} alt={asset.original_filename} className="w-24 h-24 object-cover rounded-xl border border-gray-200" />
                                   </a>
                                   <div className="mt-2 space-y-1 text-xs">
+                                    {asset.original_filename && (
+                                      <div className="truncate text-gray-500" title={asset.original_filename}>
+                                        {asset.original_filename}
+                                      </div>
+                                    )}
                                     <a href={asset.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#B68AD8] hover:underline">
                                       <ExternalLink className="w-3 h-3" />
                                       פתיחה
@@ -394,6 +412,12 @@ export default function AdminOrders() {
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {assetLinks.length === 0 && hasLegacyAssets && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            נמצאו קבצי תמונה ישנים שנשמרו בתוך נתוני ההתאמה האישית. להזמנה הזו אין קישורי Storage חדשים, ולכן ייתכן שלא ניתן להציג תצוגה מקדימה או הורדה ישירה.
                           </div>
                         )}
                       </div>
