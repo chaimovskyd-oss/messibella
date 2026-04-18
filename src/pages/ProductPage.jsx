@@ -31,7 +31,7 @@ export default function ProductPage() {
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', productId],
-    queryFn: async () => getProducts().find(currentProduct => currentProduct.id === productId),
+    queryFn: async () => (await getProducts()).find(currentProduct => currentProduct.id === productId),
     enabled: !!productId,
   });
 
@@ -49,7 +49,7 @@ export default function ProductPage() {
 
   const { data: reviews } = useQuery({
     queryKey: ['reviews', productId],
-    queryFn: async () => getReviews().filter(review => review.product_id === productId && review.is_approved),
+    queryFn: async () => (await getReviews()).filter(review => review.product_id === productId && review.is_approved !== false),
     initialData: [],
     enabled: !!productId,
   });

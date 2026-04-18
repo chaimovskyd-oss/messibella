@@ -1,15 +1,16 @@
-﻿import React, { useState, useEffect } from 'react';
-import { useCart } from '@/components/store/CartContext';
-import { base44 } from '@/api/localClient';
-import { createOrderWithItems } from '@/services/orderService';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { Check, CreditCard, Loader2, MapPin, ShoppingCart, Truck } from 'lucide-react';
+import { base44 } from '@/api/localClient';
+import { useCart } from '@/components/store/CartContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Loader2, Check, ShoppingCart, MapPin, Truck, CreditCard } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { createOrderWithItems } from '@/services/orderService';
+import { sendOrderEmails } from '@/services/orderEmailService';
 
 export default function Checkout() {
   const { cart, cartTotal, getDiscountedPrice, getItemTotal, clearCart } = useCart();
@@ -23,19 +24,19 @@ export default function Checkout() {
     shipping_address: '',
     shipping_city: '',
     shipping_method: 'delivery',
-    notes: ''
+    notes: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
 
-  const { data: shippingOptions } = useQuery({
+  const { data: shippingOptions = [] } = useQuery({
     queryKey: ['shipping'],
     queryFn: () => base44.entities.ShippingOption.filter({ is_active: true }),
     initialData: [],
   });
 
-  const { data: coupons } = useQuery({
+  const { data: coupons = [] } = useQuery({
     queryKey: ['coupons'],
     queryFn: () => base44.entities.Coupon.list(),
     initialData: [],
@@ -44,10 +45,10 @@ export default function Checkout() {
   useEffect(() => {
     base44.auth.me().then(user => {
       if (user) {
-        setForm(f => ({
-          ...f,
+        setForm(current => ({
+          ...current,
           customer_name: user.full_name || '',
-          customer_email: user.email || ''
+          customer_email: user.email || '',
         }));
       }
     }).catch(() => {});
@@ -63,16 +64,17 @@ export default function Checkout() {
       : appliedCoupon.discount_value
     : 0;
 
-  const selectedShipping = shippingOptions.find(s => s.type === form.shipping_method);
+  const selectedShipping = shippingOptions.find(option => option.type === form.shipping_method);
   const shippingCost = selectedShipping
     ? (selectedShipping.free_above && cartTotal >= selectedShipping.free_above ? 0 : selectedShipping.price)
     : (cartTotal >= 200 ? 0 : 30);
 
   const finalTotal = cartTotal - discountAmount + shippingCost;
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setSubmitting(true);
+
     try {
       const items = cart.map(item => ({
         product_id: item.product_id,
@@ -82,7 +84,7 @@ export default function Checkout() {
         quantity: item.quantity,
         unit_price: getDiscountedPrice(item),
         line_total: getItemTotal(item),
-        customization_data: item.customizations
+        customization_data: item.customizations,
       }));
 
       const createdOrder = await createOrderWithItems({
@@ -97,23 +99,23 @@ export default function Checkout() {
         notes: form.notes,
         total_price: finalTotal,
         status: 'new',
-        source: 'website'
+        source: 'website',
       }, items);
 
-      base44.functions.invoke('sendOrderEmail', {
-        order: {
-          ...form,
-          ...createdOrder,
-          subtotal: cartTotal,
-          shipping_cost: shippingCost,
-          discount_amount: discountAmount,
-          coupon_code: couponCode || '',
-        }
-      }).catch(() => {});
+      await sendOrderEmails({
+        ...createdOrder,
+        customer_name: form.customer_name,
+        customer_phone: form.customer_phone,
+        customer_email: form.customer_email,
+        shipping_address: form.shipping_address,
+        shipping_city: form.shipping_city,
+        shipping_method: form.shipping_method,
+        notes: form.notes,
+      });
 
       if (appliedCoupon) {
         await base44.entities.Coupon.update(appliedCoupon.id, {
-          current_uses: (appliedCoupon.current_uses || 0) + 1
+          current_uses: (appliedCoupon.current_uses || 0) + 1,
         });
       }
 
@@ -135,7 +137,7 @@ export default function Checkout() {
         </div>
         <h1 className="text-3xl font-extrabold text-gray-900 mb-2">ההזמנה התקבלה!</h1>
         <p className="text-gray-500 text-lg mb-2">מספר הזמנה: <strong>{orderNumber}</strong></p>
-        <p className="text-gray-500 mb-8">נשלח לכם אישור במייל בקרוב</p>
+        <p className="text-gray-500 mb-8">נשלח אליכם מייל תודה עם פרטי ההזמנה</p>
         <Link to={createPageUrl('Home')}>
           <Button className="bg-[#F5B731] hover:bg-[#e5a821] rounded-2xl px-8 py-5 text-lg">
             חזרה לדף הבית
@@ -165,7 +167,6 @@ export default function Checkout() {
         <form onSubmit={handleSubmit}>
           <div className="grid md:grid-cols-3 gap-6 items-start">
             <div className="md:col-span-2 space-y-6">
-              {/* Personal details */}
               <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
                   <MapPin className="w-5 h-5 text-[#B68AD8]" />
@@ -174,26 +175,25 @@ export default function Checkout() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>שם מלא *</Label>
-                    <Input required value={form.customer_name} onChange={(e) => setForm({...form, customer_name: e.target.value})} className="rounded-xl mt-1" />
+                    <Input required value={form.customer_name} onChange={(e) => setForm({ ...form, customer_name: e.target.value })} className="rounded-xl mt-1" />
                   </div>
                   <div>
                     <Label>טלפון *</Label>
-                    <Input required type="tel" value={form.customer_phone} onChange={(e) => setForm({...form, customer_phone: e.target.value})} className="rounded-xl mt-1" />
+                    <Input required type="tel" value={form.customer_phone} onChange={(e) => setForm({ ...form, customer_phone: e.target.value })} className="rounded-xl mt-1" />
                   </div>
                   <div className="md:col-span-2">
-                    <Label>אימייל</Label>
-                    <Input type="email" value={form.customer_email} onChange={(e) => setForm({...form, customer_email: e.target.value})} className="rounded-xl mt-1" />
+                    <Label>אימייל *</Label>
+                    <Input required type="email" value={form.customer_email} onChange={(e) => setForm({ ...form, customer_email: e.target.value })} className="rounded-xl mt-1" />
                   </div>
                 </div>
               </div>
 
-              {/* Shipping */}
               <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
                   <Truck className="w-5 h-5 text-[#B68AD8]" />
                   משלוח
                 </h2>
-                <RadioGroup value={form.shipping_method} onValueChange={(v) => setForm({...form, shipping_method: v})} className="space-y-3 mb-4">
+                <RadioGroup value={form.shipping_method} onValueChange={(value) => setForm({ ...form, shipping_method: value })} className="space-y-3 mb-4">
                   <div className="flex items-center gap-3 p-3 border rounded-xl hover:border-[#B68AD8] transition-colors">
                     <RadioGroupItem value="delivery" id="delivery" />
                     <Label htmlFor="delivery" className="flex-1 cursor-pointer">
@@ -224,24 +224,22 @@ export default function Checkout() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label>כתובת</Label>
-                      <Input value={form.shipping_address} onChange={(e) => setForm({...form, shipping_address: e.target.value})} className="rounded-xl mt-1" />
+                      <Input value={form.shipping_address} onChange={(e) => setForm({ ...form, shipping_address: e.target.value })} className="rounded-xl mt-1" />
                     </div>
                     <div>
                       <Label>עיר</Label>
-                      <Input value={form.shipping_city} onChange={(e) => setForm({...form, shipping_city: e.target.value})} className="rounded-xl mt-1" />
+                      <Input value={form.shipping_city} onChange={(e) => setForm({ ...form, shipping_city: e.target.value })} className="rounded-xl mt-1" />
                     </div>
                   </div>
                 )}
               </div>
 
-              {/* Notes */}
               <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
                 <Label>הערות להזמנה</Label>
-                <Input value={form.notes} onChange={(e) => setForm({...form, notes: e.target.value})} className="rounded-xl mt-1" placeholder="הערות מיוחדות..." />
+                <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="rounded-xl mt-1" placeholder="הערות מיוחדות..." />
               </div>
             </div>
 
-            {/* Summary */}
             <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm h-fit md:sticky md:top-24">
               <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-[#B68AD8]" />
@@ -283,7 +281,7 @@ export default function Checkout() {
               >
                 {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'אישור הזמנה'}
               </Button>
-              <p className="text-xs text-gray-400 text-center mt-3">ניצור קשר לתיאום תשלום</p>
+              <p className="text-xs text-gray-400 text-center mt-3">נשלח מייל אישור ללקוח והודעה לאדמין עם פרטי ההזמנה</p>
             </div>
           </div>
         </form>

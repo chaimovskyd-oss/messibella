@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
-import { LayoutDashboard, Package, FolderOpen, Image, ShoppingCart, Truck, Tag, Star, Settings, ArrowRight } from 'lucide-react';
+import { LayoutDashboard, Package, FolderOpen, Image, ShoppingCart, Truck, Tag, Star, ArrowRight, BookOpen, Images } from 'lucide-react';
 
 const LOGO_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/user_67d6827d7b459e772fe40b45/ab330f83c_logo.png";
 
@@ -11,6 +11,8 @@ const menuItems = [
   { label: 'קטגוריות', page: 'AdminCategories', icon: FolderOpen },
   { label: 'באנרים', page: 'AdminBanners', icon: Image },
   { label: 'הזמנות', page: 'AdminOrders', icon: ShoppingCart },
+  { label: 'הטיפים שלנו', page: 'AdminTips', icon: BookOpen },
+  { label: 'גלריה', page: 'AdminGallery', icon: Images },
   { label: 'קופונים', page: 'AdminCoupons', icon: Tag },
   { label: 'ביקורות', page: 'AdminReviews', icon: Star },
   { label: 'משלוחים', page: 'AdminShipping', icon: Truck },

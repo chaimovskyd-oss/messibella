@@ -1,60 +1,8 @@
-import {
-  getBanners,
-  getCategories,
-  getCoupons,
-  getNavMenuItems,
-  getProducts,
-  getReviews,
-  getShippingOptions,
-} from '@/data/store';
-
-const storagePrefix = 'masibala_local_';
+import { ADMIN_EMAIL } from '@/data/defaultContent';
+import { getCollection, saveCollection, uploadSiteAsset } from '@/services/siteContentService';
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
-}
-
-function getStorage() {
-  if (typeof window === 'undefined') return null;
-  return window.localStorage;
-}
-
-function seedMap() {
-  return {
-    Product: getProducts(),
-    Category: getCategories(),
-    Banner: getBanners(),
-    Review: getReviews(),
-    ShippingOption: getShippingOptions(),
-    Coupon: getCoupons(),
-    NavMenuItem: getNavMenuItems(),
-  };
-}
-
-function loadCollection(entityName) {
-  const storage = getStorage();
-  const defaults = clone(seedMap()[entityName] || []);
-
-  if (!storage) return defaults;
-
-  const existing = storage.getItem(`${storagePrefix}${entityName}`);
-  if (existing) {
-    try {
-      return JSON.parse(existing);
-    } catch {
-      storage.removeItem(`${storagePrefix}${entityName}`);
-    }
-  }
-
-  storage.setItem(`${storagePrefix}${entityName}`, JSON.stringify(defaults));
-  return defaults;
-}
-
-function saveCollection(entityName, items) {
-  const storage = getStorage();
-  if (storage) {
-    storage.setItem(`${storagePrefix}${entityName}`, JSON.stringify(items));
-  }
 }
 
 function compareValues(left, right, descending) {
@@ -100,58 +48,45 @@ function generateId(entityName) {
 function createEntityApi(entityName) {
   return {
     async list(sortKey) {
-      return sortItems(loadCollection(entityName), sortKey);
+      return sortItems(await getCollection(entityName), sortKey);
     },
     async filter(filters, sortKey) {
-      return sortItems(filterItems(loadCollection(entityName), filters), sortKey);
+      return sortItems(filterItems(await getCollection(entityName), filters), sortKey);
     },
     async create(data) {
-      const items = loadCollection(entityName);
+      const items = await getCollection(entityName);
       const nextItem = {
         id: data.id || generateId(entityName),
         created_date: data.created_date || new Date().toISOString(),
         updated_date: new Date().toISOString(),
         ...data,
       };
-      items.push(nextItem);
-      saveCollection(entityName, items);
+      const nextItems = [...items, nextItem];
+      await saveCollection(entityName, nextItems);
       return clone(nextItem);
     },
     async update(id, data) {
-      const items = loadCollection(entityName);
+      const items = await getCollection(entityName);
       const index = items.findIndex(item => item.id === id);
       if (index === -1) throw new Error(`${entityName} ${id} not found`);
-      items[index] = {
-        ...items[index],
+
+      const nextItems = [...items];
+      nextItems[index] = {
+        ...nextItems[index],
         ...data,
         updated_date: new Date().toISOString(),
       };
-      saveCollection(entityName, items);
-      return clone(items[index]);
+
+      await saveCollection(entityName, nextItems);
+      return clone(nextItems[index]);
     },
     async delete(id) {
-      const items = loadCollection(entityName).filter(item => item.id !== id);
-      saveCollection(entityName, items);
+      const nextItems = (await getCollection(entityName)).filter(item => item.id !== id);
+      await saveCollection(entityName, nextItems);
       return { success: true };
     },
   };
 }
-
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
-const demoUser = {
-  id: 'local-user',
-  full_name: 'משתמש מקומי',
-  email: 'local@example.com',
-  role: 'admin',
-};
 
 export const localClient = {
   entities: {
@@ -162,13 +97,20 @@ export const localClient = {
     ShippingOption: createEntityApi('ShippingOption'),
     Coupon: createEntityApi('Coupon'),
     NavMenuItem: createEntityApi('NavMenuItem'),
+    BlogPost: createEntityApi('BlogPost'),
+    GalleryItem: createEntityApi('GalleryItem'),
   },
   auth: {
     async me() {
-      return demoUser;
+      return {
+        id: 'local-admin',
+        full_name: 'מסיבלה',
+        email: ADMIN_EMAIL,
+        role: 'admin',
+      };
     },
     redirectToLogin() {
-      window.location.href = '/';
+      window.location.href = '/AdminLogin';
     },
     logout() {
       return Promise.resolve();
@@ -176,13 +118,15 @@ export const localClient = {
   },
   integrations: {
     Core: {
-      async UploadFile({ file }) {
-        return { file_url: await fileToDataUrl(file) };
+      async UploadFile({ file, folder }) {
+        const asset = await uploadSiteAsset(file, folder);
+        return { file_url: asset.file_url, ...asset };
       },
     },
   },
   functions: {
-    async invoke() {
+    async invoke(functionName, { body } = {}) {
+      console.warn(`Legacy function invoke called for ${functionName}.`, body);
       return { success: true };
     },
   },

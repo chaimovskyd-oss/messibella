@@ -51,16 +51,22 @@ import AdminBanners from './pages/AdminBanners';
 import AdminCategories from './pages/AdminCategories';
 import AdminCoupons from './pages/AdminCoupons';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminGallery from './pages/AdminGallery';
+import AdminLogin from './pages/AdminLogin';
 import AdminOrders from './pages/AdminOrders';
 import AdminProducts from './pages/AdminProducts';
 import AdminReviews from './pages/AdminReviews';
 import AdminShipping from './pages/AdminShipping';
+import AdminTips from './pages/AdminTips';
 import Cart from './pages/Cart';
 import Catalog from './pages/Catalog';
 import Checkout from './pages/Checkout';
+import Gallery from './pages/Gallery';
 import Home from './pages/Home';
 import MyOrders from './pages/MyOrders';
 import ProductPage from './pages/ProductPage';
+import Testimonials from './pages/Testimonials';
+import Tips from './pages/Tips';
 import __Layout from './Layout.jsx';
 
 
@@ -69,16 +75,22 @@ export const PAGES = {
     "AdminCategories": AdminCategories,
     "AdminCoupons": AdminCoupons,
     "AdminDashboard": AdminDashboard,
+    "AdminGallery": AdminGallery,
+    "AdminLogin": AdminLogin,
     "AdminOrders": AdminOrders,
     "AdminProducts": AdminProducts,
     "AdminReviews": AdminReviews,
     "AdminShipping": AdminShipping,
+    "AdminTips": AdminTips,
     "Cart": Cart,
     "Catalog": Catalog,
     "Checkout": Checkout,
+    "Gallery": Gallery,
     "Home": Home,
     "MyOrders": MyOrders,
     "ProductPage": ProductPage,
+    "Testimonials": Testimonials,
+    "Tips": Tips,
 }
 
 export const pagesConfig = {

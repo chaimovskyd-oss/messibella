@@ -29,7 +29,7 @@ export default function Home() {
 
   const { data: reviews } = useQuery({
     queryKey: ['reviews'],
-    queryFn: async () => getReviews().filter(review => review.is_approved),
+    queryFn: async () => (await getReviews()).filter(review => review.is_approved !== false),
     initialData: [],
   });
 
