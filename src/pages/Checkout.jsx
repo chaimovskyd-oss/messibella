@@ -86,7 +86,6 @@ export default function Checkout() {
       }));
 
       const createdOrder = await createOrderWithItems({
-        order_number: `MSB-${Date.now().toString(36).toUpperCase()}`,
         customer_name: form.customer_name,
         phone: form.customer_phone,
         email: form.customer_email,

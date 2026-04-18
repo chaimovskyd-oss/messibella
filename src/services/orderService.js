@@ -22,10 +22,6 @@ function toInteger(value) {
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function generateOrderNumber() {
-  return `MSB-${Date.now().toString(36).toUpperCase()}`;
-}
-
 function isPlainObject(value) {
   if (!value || typeof value !== 'object') return false;
   const prototype = Object.getPrototypeOf(value);
@@ -122,7 +118,6 @@ function normalizeOrder(order) {
 
 function buildOrderPayload(orderInput) {
   return {
-    order_number: orderInput.order_number || generateOrderNumber(),
     customer_name: orderInput.customer_name || '',
     phone: orderInput.phone || '',
     email: orderInput.email || '',
