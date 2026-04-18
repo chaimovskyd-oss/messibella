@@ -1,9 +1,9 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { createPageUrl } from '@/utils';
-import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
-import { Star, TrendingUp } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { TrendingUp } from 'lucide-react';
+import { createPageUrl } from '@/utils';
 
 const tagConfig = {
   best_seller: { label: 'הכי נמכר', color: 'bg-[#F5B731] text-white' },
@@ -13,7 +13,7 @@ const tagConfig = {
 
 export default function ProductCard({ product, index = 0 }) {
   const bestDiscount = product.quantity_discounts?.length
-    ? Math.max(...product.quantity_discounts.map(d => d.discount_percent))
+    ? Math.max(...product.quantity_discounts.map(discount => discount.discount_percent))
     : 0;
 
   return (
@@ -33,7 +33,6 @@ export default function ProductCard({ product, index = 0 }) {
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          {/* Tags */}
           <div className="absolute top-3 right-3 flex flex-col gap-1">
             {product.tags?.map(tag => (
               <Badge key={tag} className={`${tagConfig[tag]?.color} text-xs px-2 py-1 rounded-lg shadow-sm`}>
@@ -48,19 +47,18 @@ export default function ProductCard({ product, index = 0 }) {
             </div>
           )}
         </div>
-        <div className="p-4">
-          <h3 className="font-bold text-gray-900 text-base mb-1 group-hover:text-[#B68AD8] transition-colors line-clamp-1">
+
+        <div className="p-3 sm:p-4">
+          <h3 className="font-bold text-gray-900 text-sm sm:text-base mb-1 group-hover:text-[#B68AD8] transition-colors line-clamp-2 min-h-[2.5rem] sm:min-h-[3rem]">
             {product.name}
           </h3>
           {product.short_description && (
             <p className="text-gray-500 text-sm mb-3 line-clamp-2">{product.short_description}</p>
           )}
           <div className="flex items-center justify-between">
-            <div className="flex items-baseline gap-1">
-              <span className="text-xl font-extrabold text-[#F5B731]">₪{product.base_price}</span>
-              {bestDiscount > 0 && (
-                <span className="text-xs text-gray-400">/ יחידה</span>
-              )}
+            <div className="flex items-baseline gap-1 flex-wrap">
+              <span className="text-lg sm:text-xl font-extrabold text-[#F5B731]">₪{product.base_price}</span>
+              {bestDiscount > 0 && <span className="text-xs text-gray-400">/ יחידה</span>}
             </div>
           </div>
         </div>

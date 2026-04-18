@@ -15,7 +15,7 @@ const colorOptions = {
 
 // Names list field – for bulk orders
 function NamesListField({ label, value, onChange }) {
-  const names = value ? value.split('\n').filter(n => n.trim()) : [];
+  const names = value ? value.split('\n') : [];
 
   const updateNames = (newNames) => {
     onChange(newNames.join('\n'));
@@ -31,21 +31,21 @@ function NamesListField({ label, value, onChange }) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-2">
         <span className="text-sm text-gray-500">{names.length} שמות</span>
-        <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs" onClick={addName}>
+        <Button type="button" variant="outline" size="sm" className="rounded-lg text-xs self-start" onClick={addName}>
           <Plus className="w-3 h-3 ml-1" /> הוסף שם
         </Button>
       </div>
       <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
         {names.map((name, i) => (
-          <div key={i} className="flex gap-2 items-center">
+          <div key={`${label}-${i}`} className="flex gap-2 items-center">
             <span className="text-xs text-gray-400 w-6 text-center">{i + 1}</span>
             <Input
               value={name}
               onChange={(e) => editName(i, e.target.value)}
               placeholder={`שם ${i + 1}`}
-              className="rounded-lg h-8 text-sm flex-1"
+              className="rounded-lg h-10 text-sm flex-1 min-w-0"
             />
             <button type="button" onClick={() => removeName(i)} className="text-gray-400 hover:text-red-500">
               <Trash2 className="w-3 h-3" />
@@ -116,7 +116,7 @@ export default function ProductCustomization({ options, values, onChange, design
       {hasDesigns && (
         <div>
           <h3 className="font-bold text-gray-900 text-lg mb-3">בחרו עיצוב גרפי</h3>
-          <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {designOptions.map((d, i) => (
               <div key={i} className="relative group">
                 <button
@@ -150,7 +150,7 @@ export default function ProductCustomization({ options, values, onChange, design
 
       {/* Design preview popup */}
       <Dialog open={!!previewDesign} onOpenChange={() => setPreviewDesign(null)}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden rounded-2xl">
+        <DialogContent className="max-w-lg w-[calc(100vw-2rem)] p-0 overflow-hidden rounded-2xl">
           {previewDesign && (
             <div>
               <img src={previewDesign.image_url} alt={previewDesign.name} className="w-full object-contain max-h-[70vh]" />

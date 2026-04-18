@@ -1,16 +1,16 @@
 import React from 'react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Search, X, SlidersHorizontal } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { getChildCategories, getRootCategories } from '@/utils/categories';
 
-export default function ProductFilters({ 
-  categories, 
-  selectedCategory, 
-  setSelectedCategory, 
-  searchQuery, 
+export default function ProductFilters({
+  categories,
+  selectedCategory,
+  setSelectedCategory,
+  searchQuery,
   setSearchQuery,
   sortBy,
   setSortBy,
@@ -19,7 +19,7 @@ export default function ProductFilters({
   showPopular,
   setShowPopular
 }) {
-  const activeCategories = categories.filter(c => c.is_active !== false);
+  const activeCategories = categories.filter(category => category.is_active !== false);
   const rootCategories = getRootCategories(activeCategories);
   const selectedItem = activeCategories.find(category => category.id === selectedCategory);
   const selectedRootId = selectedItem?.parent_id || (rootCategories.some(category => category.id === selectedCategory) ? selectedCategory : '');
@@ -27,7 +27,6 @@ export default function ProductFilters({
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 mb-8">
-      {/* Search */}
       <div className="relative mb-4">
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
         <Input
@@ -43,31 +42,30 @@ export default function ProductFilters({
         )}
       </div>
 
-      {/* Categories */}
       <div className="flex flex-wrap gap-2 mb-4">
         <Badge
           variant={selectedCategory === 'all' ? 'default' : 'outline'}
           className={`cursor-pointer px-4 py-2 rounded-xl text-sm transition-all ${
-            selectedCategory === 'all' 
-              ? 'bg-[#B68AD8] hover:bg-[#9b6fc0] text-white' 
+            selectedCategory === 'all'
+              ? 'bg-[#B68AD8] hover:bg-[#9b6fc0] text-white'
               : 'hover:bg-[#B68AD8]/10 border-gray-200'
           }`}
           onClick={() => setSelectedCategory('all')}
         >
           הכל
         </Badge>
-        {rootCategories.map(cat => (
+        {rootCategories.map(category => (
           <Badge
-            key={cat.id}
-            variant={selectedCategory === cat.id ? 'default' : 'outline'}
+            key={category.id}
+            variant={selectedCategory === category.id ? 'default' : 'outline'}
             className={`cursor-pointer px-4 py-2 rounded-xl text-sm transition-all ${
-              selectedCategory === cat.id 
-                ? 'bg-[#B68AD8] hover:bg-[#9b6fc0] text-white' 
+              selectedCategory === category.id
+                ? 'bg-[#B68AD8] hover:bg-[#9b6fc0] text-white'
                 : 'hover:bg-[#B68AD8]/10 border-gray-200'
             }`}
-            onClick={() => setSelectedCategory(cat.id)}
+            onClick={() => setSelectedCategory(category.id)}
           >
-            {cat.name}
+            {category.name}
           </Badge>
         ))}
       </div>
@@ -85,27 +83,26 @@ export default function ProductFilters({
           >
             כל תתי-הקטגוריות
           </Badge>
-          {visibleSubcategories.map(cat => (
+          {visibleSubcategories.map(category => (
             <Badge
-              key={cat.id}
-              variant={selectedCategory === cat.id ? 'default' : 'outline'}
+              key={category.id}
+              variant={selectedCategory === category.id ? 'default' : 'outline'}
               className={`cursor-pointer px-4 py-2 rounded-xl text-sm transition-all ${
-                selectedCategory === cat.id
+                selectedCategory === category.id
                   ? 'bg-[#5BC5C8] hover:bg-[#48b2b5] text-white'
                   : 'hover:bg-[#5BC5C8]/10 border-gray-200'
               }`}
-              onClick={() => setSelectedCategory(cat.id)}
+              onClick={() => setSelectedCategory(category.id)}
             >
-              {cat.name}
+              {category.name}
             </Badge>
           ))}
         </div>
       )}
 
-      {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
         <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-40 rounded-xl">
+          <SelectTrigger className="w-full sm:w-40 rounded-xl">
             <SlidersHorizontal className="w-4 h-4 ml-2" />
             <SelectValue placeholder="מיון" />
           </SelectTrigger>
@@ -120,19 +117,19 @@ export default function ProductFilters({
         <Button
           variant={showSale ? 'default' : 'outline'}
           size="sm"
-          className={`rounded-xl ${showSale ? 'bg-red-500 hover:bg-red-600' : ''}`}
+          className={`rounded-xl min-h-10 ${showSale ? 'bg-red-500 hover:bg-red-600' : ''}`}
           onClick={() => setShowSale(!showSale)}
         >
-          🏷️ במבצע
+          במבצע
         </Button>
 
         <Button
           variant={showPopular ? 'default' : 'outline'}
           size="sm"
-          className={`rounded-xl ${showPopular ? 'bg-[#F5B731] hover:bg-[#e5a821]' : ''}`}
+          className={`rounded-xl min-h-10 ${showPopular ? 'bg-[#F5B731] hover:bg-[#e5a821]' : ''}`}
           onClick={() => setShowPopular(!showPopular)}
         >
-          ⭐ פופולרי
+          פופולרי
         </Button>
       </div>
     </div>

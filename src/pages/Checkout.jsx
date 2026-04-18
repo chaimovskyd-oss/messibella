@@ -163,7 +163,7 @@ export default function Checkout() {
         <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-8">השלמת הזמנה</h1>
 
         <form onSubmit={handleSubmit}>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-6 items-start">
             <div className="md:col-span-2 space-y-6">
               {/* Personal details */}
               <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
@@ -242,7 +242,7 @@ export default function Checkout() {
             </div>
 
             {/* Summary */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm h-fit sticky top-24">
+            <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm h-fit md:sticky md:top-24">
               <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-[#B68AD8]" />
                 סיכום

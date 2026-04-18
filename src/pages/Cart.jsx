@@ -91,7 +91,7 @@ export default function Cart() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-3 gap-6 items-start">
           {/* Items */}
           <div className="md:col-span-2 space-y-3">
             {cart.map(item => (
@@ -100,18 +100,18 @@ export default function Cart() {
           </div>
 
           {/* Summary */}
-          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm h-fit sticky top-24">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 border border-gray-100 shadow-sm h-fit md:sticky md:top-24">
             <h2 className="font-bold text-lg mb-4">סיכום הזמנה</h2>
 
             {/* Coupon */}
-            <div className="flex gap-2 mb-4">
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
               <Input
                 placeholder="קוד קופון"
                 value={couponCode}
                 onChange={(e) => setCouponCode(e.target.value)}
                 className="rounded-xl text-sm"
               />
-              <Button variant="outline" size="sm" className="rounded-xl px-4" onClick={applyCoupon}>
+              <Button variant="outline" size="sm" className="rounded-xl px-4 min-h-10" onClick={applyCoupon}>
                 <Tag className="w-4 h-4" />
               </Button>
             </div>
@@ -146,7 +146,7 @@ export default function Cart() {
               </div>
             </div>
 
-            <Link to={createPageUrl('Checkout') + `?coupon=${appliedCoupon?.code || ''}`}>
+            <Link to={createPageUrl('Checkout') + `?coupon=${appliedCoupon?.code || ''}`} className="block">
               <Button className="w-full mt-4 bg-[#F5B731] hover:bg-[#e5a821] text-lg py-5 rounded-2xl font-bold shadow-lg shadow-[#F5B731]/30">
                 לתשלום
                 <ArrowLeft className="w-5 h-5 mr-2" />
