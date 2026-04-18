@@ -4,6 +4,20 @@ const ORDERS_SCHEMA = 'public';
 const ORDERS_TABLE = 'orders';
 const ORDER_ITEMS_TABLE = 'order_items';
 const ORDER_ITEM_ASSETS_TABLE = 'order_item_assets';
+const ORDER_INSERT_FIELDS = [
+  'customer_name',
+  'phone',
+  'email',
+  'address_line1',
+  'address_line2',
+  'city',
+  'postal_code',
+  'delivery_type',
+  'notes',
+  'total_price',
+  'status',
+  'source',
+];
 const ORDER_SELECT = `
   *,
   order_items (
@@ -117,7 +131,7 @@ function normalizeOrder(order) {
 }
 
 function buildOrderPayload(orderInput) {
-  return {
+  const payload = {
     customer_name: orderInput.customer_name || '',
     phone: orderInput.phone || '',
     email: orderInput.email || '',
@@ -131,6 +145,12 @@ function buildOrderPayload(orderInput) {
     status: orderInput.status || 'new',
     source: orderInput.source || 'website',
   };
+
+  return Object.fromEntries(
+    ORDER_INSERT_FIELDS
+      .filter(field => Object.hasOwn(payload, field))
+      .map(field => [field, payload[field]])
+  );
 }
 
 function buildOrderItemPayload(orderId, cartItem) {
@@ -150,6 +170,8 @@ function buildOrderItemPayload(orderId, cartItem) {
 
 export async function createOrderWithItems(orderInput, cartItems) {
   const orderPayload = buildOrderPayload(orderInput);
+
+  console.log('Supabase orders insert payload', orderPayload);
 
   const { data: orderData, error: orderError } = await ordersTable()
     .insert([orderPayload])
