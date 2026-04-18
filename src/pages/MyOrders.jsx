@@ -25,12 +25,15 @@ export default function MyOrders() {
   }, []);
 
   const { data: orders, isLoading, error } = useQuery({
-    queryKey: ['my-orders', user?.full_name],
+    queryKey: ['my-orders', user?.email, user?.full_name],
     queryFn: async () => {
       const allOrders = await getOrders();
-      return allOrders.filter(order => order.customer_name === user?.full_name);
+      return allOrders.filter(order =>
+        (user?.email && order.customer_email === user.email)
+        || (user?.full_name && order.customer_name === user.full_name)
+      );
     },
-    enabled: !!user?.full_name,
+    enabled: !!(user?.email || user?.full_name),
     initialData: [],
   });
 

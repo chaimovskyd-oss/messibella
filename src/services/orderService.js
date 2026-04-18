@@ -2,88 +2,226 @@ import { supabase } from '@/lib/supabaseClient';
 
 const ORDERS_SCHEMA = 'public';
 const ORDERS_TABLE = 'orders';
+const ORDER_ITEMS_TABLE = 'order_items';
+const ORDER_ITEM_ASSETS_TABLE = 'order_item_assets';
+const ORDER_SELECT = `
+  *,
+  order_items (
+    *,
+    order_item_assets (*)
+  )
+`;
 
 function toNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function buildOrderNumber(order) {
-  if (!order?.id) return '';
-  return `MSB-${String(order.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase()}`;
+function toInteger(value) {
+  const numeric = Number.parseInt(value, 10);
+  return Number.isFinite(numeric) ? numeric : 0;
 }
 
-function normalizeOrder(order) {
-  return {
-    ...order,
-    customer_phone: order.phone || '',
-    total: toNumber(order.total_price),
-    created_date: order.created_at,
-    order_number: buildOrderNumber(order),
-    items: Array.isArray(order.items) ? order.items : [],
-  };
+function generateOrderNumber() {
+  return `MSB-${Date.now().toString(36).toUpperCase()}`;
+}
+
+function isPlainObject(value) {
+  if (!value || typeof value !== 'object') return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function sanitizeSerializable(value) {
+  if (value == null) return value;
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map(sanitizeSerializable)
+      .filter(item => item !== undefined);
+  }
+  if (isPlainObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .map(([key, itemValue]) => [key, sanitizeSerializable(itemValue)])
+        .filter(([, itemValue]) => itemValue !== undefined)
+    );
+  }
+  return undefined;
+}
+
+function logSupabaseOrderError(action, error, extra = {}) {
+  console.error(`Supabase order flow ${action} failed`, {
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+    code: error?.code,
+    schema: ORDERS_SCHEMA,
+    ordersTable: ORDERS_TABLE,
+    orderItemsTable: ORDER_ITEMS_TABLE,
+    orderItemAssetsTable: ORDER_ITEM_ASSETS_TABLE,
+    ...extra,
+  });
 }
 
 function ordersTable() {
   return supabase.schema(ORDERS_SCHEMA).from(ORDERS_TABLE);
 }
 
-function logSupabaseOrderError(action, error, extra = {}) {
-  console.error(`Supabase orders ${action} failed`, {
-    schema: ORDERS_SCHEMA,
-    table: ORDERS_TABLE,
-    message: error?.message,
-    details: error?.details,
-    hint: error?.hint,
-    code: error?.code,
-    ...extra,
-  });
+function orderItemsTable() {
+  return supabase.schema(ORDERS_SCHEMA).from(ORDER_ITEMS_TABLE);
 }
 
-export async function createOrder(order) {
-  const payload = {
-    customer_name: order.customer_name,
-    phone: order.phone,
-    items: order.items,
-    total_price: toNumber(order.total_price),
-    status: order.status || 'new',
+function normalizeAsset(asset) {
+  return {
+    ...asset,
+    sort_order: toInteger(asset?.sort_order),
   };
+}
 
-  const { data, error } = await ordersTable()
-    .insert([payload])
-    .select()
+function normalizeOrderItem(item) {
+  const customizationData = isPlainObject(item?.customization_data) ? item.customization_data : {};
+  const assets = Array.isArray(item?.order_item_assets) ? item.order_item_assets.map(normalizeAsset) : [];
+
+  return {
+    ...item,
+    product_name: item?.product_name_snapshot || '',
+    unit_price: toNumber(item?.unit_price),
+    line_total: toNumber(item?.line_total),
+    total_price: toNumber(item?.line_total),
+    quantity: toInteger(item?.quantity),
+    customization_data: customizationData,
+    customizations: customizationData,
+    order_item_assets: assets,
+  };
+}
+
+function normalizeOrder(order) {
+  const items = Array.isArray(order?.order_items)
+    ? order.order_items.map(normalizeOrderItem)
+    : [];
+
+  return {
+    ...order,
+    customer_phone: order?.phone || '',
+    customer_email: order?.email || '',
+    shipping_address: order?.address_line1 || '',
+    shipping_address_2: order?.address_line2 || '',
+    shipping_city: order?.city || '',
+    postal_code: order?.postal_code || '',
+    shipping_method: order?.delivery_type || '',
+    total: toNumber(order?.total_price),
+    created_date: order?.created_at,
+    updated_date: order?.updated_at,
+    items,
+    order_items: items,
+  };
+}
+
+function buildOrderPayload(orderInput) {
+  return {
+    order_number: orderInput.order_number || generateOrderNumber(),
+    customer_name: orderInput.customer_name || '',
+    phone: orderInput.phone || '',
+    email: orderInput.email || '',
+    address_line1: orderInput.address_line1 || '',
+    address_line2: orderInput.address_line2 || '',
+    city: orderInput.city || '',
+    postal_code: orderInput.postal_code || '',
+    delivery_type: orderInput.delivery_type || '',
+    notes: orderInput.notes || '',
+    total_price: toNumber(orderInput.total_price),
+    status: orderInput.status || 'new',
+    source: orderInput.source || 'website',
+  };
+}
+
+function buildOrderItemPayload(orderId, cartItem) {
+  const customizationData = sanitizeSerializable(cartItem.customization_data ?? cartItem.customizations ?? {}) || {};
+
+  return {
+    order_id: orderId,
+    product_id: cartItem.product_id || null,
+    product_name_snapshot: cartItem.product_name_snapshot || cartItem.product_name || cartItem.name || '',
+    sku: cartItem.sku || '',
+    unit_price: toNumber(cartItem.unit_price ?? cartItem.price),
+    quantity: Math.max(1, toInteger(cartItem.quantity)),
+    line_total: toNumber(cartItem.line_total ?? cartItem.total_price),
+    customization_data: customizationData,
+  };
+}
+
+export async function createOrderWithItems(orderInput, cartItems) {
+  const orderPayload = buildOrderPayload(orderInput);
+
+  const { data: orderData, error: orderError } = await ordersTable()
+    .insert([orderPayload])
+    .select('*')
     .single();
 
-  if (error) {
-    logSupabaseOrderError('insert', error, { payload });
-    throw error;
+  if (orderError) {
+    logSupabaseOrderError('insert-order', orderError, { payload: orderPayload });
+    throw orderError;
   }
 
-  return normalizeOrder(data);
+  const orderItemsPayload = (cartItems || []).map(item => buildOrderItemPayload(orderData.id, item));
+
+  if (orderItemsPayload.length > 0) {
+    const { error: itemsError } = await orderItemsTable().insert(orderItemsPayload);
+
+    if (itemsError) {
+      logSupabaseOrderError('insert-order-items', itemsError, {
+        orderId: orderData.id,
+        payload: orderItemsPayload,
+      });
+      throw itemsError;
+    }
+  }
+
+  return getOrderById(orderData.id);
 }
 
 export async function getOrders() {
   const { data, error } = await ordersTable()
-    .select('*')
+    .select(ORDER_SELECT)
     .order('created_at', { ascending: false });
 
   if (error) {
-    logSupabaseOrderError('select', error);
+    logSupabaseOrderError('select-orders', error, { payload: { select: ORDER_SELECT } });
     throw error;
   }
 
   return (data || []).map(normalizeOrder);
 }
 
-export async function updateOrderStatus(id, status) {
+export async function getOrderById(orderId) {
   const { data, error } = await ordersTable()
-    .update({ status })
-    .eq('id', id)
-    .select()
+    .select(ORDER_SELECT)
+    .eq('id', orderId)
     .single();
 
   if (error) {
-    logSupabaseOrderError('update', error, { id, status });
+    logSupabaseOrderError('select-order-by-id', error, {
+      payload: { orderId, select: ORDER_SELECT },
+    });
+    throw error;
+  }
+
+  return normalizeOrder(data);
+}
+
+export async function updateOrderStatus(id, status) {
+  const payload = { status };
+  const { data, error } = await ordersTable()
+    .update(payload)
+    .eq('id', id)
+    .select('*')
+    .single();
+
+  if (error) {
+    logSupabaseOrderError('update-order-status', error, { payload: { id, ...payload } });
     throw error;
   }
 

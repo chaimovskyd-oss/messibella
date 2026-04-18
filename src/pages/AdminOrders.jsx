@@ -1,34 +1,63 @@
-﻿import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getOrders, updateOrderStatus } from '@/services/orderService';
+import React, { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { getOrderById, getOrders, updateOrderStatus } from '@/services/orderService';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Search, Eye, Loader2, Download } from 'lucide-react';
+import { Search, Eye, Loader2, Download, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 
 const statusLabels = { new: 'חדש', processing: 'בתהליך', ready: 'מוכן', shipped: 'נשלח', completed: 'הושלם', cancelled: 'בוטל' };
 const statusColors = { new: 'bg-blue-100 text-blue-700', processing: 'bg-yellow-100 text-yellow-700', ready: 'bg-purple-100 text-purple-700', shipped: 'bg-indigo-100 text-indigo-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-red-100 text-red-700' };
 
+function tryParseJsonArray(value) {
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getAssetEntries(order) {
+  const directAssets = (order?.items || []).flatMap(item =>
+    (item.order_item_assets || []).map(asset => ({
+      url: asset.file_url,
+      name: asset.original_filename || `${item.product_name}_${asset.file_type || 'asset'}`,
+    }))
+  );
+
+  const customizationAssets = (order?.items || []).flatMap(item =>
+    Object.entries(item.customizations || {}).flatMap(([key, value]) => {
+      if (typeof value === 'string' && value.startsWith('http')) {
+        return [{ url: value, name: `${item.product_name}_${key}.jpg` }];
+      }
+
+      return tryParseJsonArray(value)
+        .filter(url => typeof url === 'string' && url.startsWith('http'))
+        .map((url, index) => ({ url, name: `${item.product_name}_${key}_${index + 1}.jpg` }));
+    })
+  );
+
+  return [...directAssets, ...customizationAssets];
+}
+
+function formatCustomizationValue(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
 async function downloadImagesAsZip(order) {
-  // Collect all image URLs from customizations
-  const imageEntries = [];
-  (order.items || []).forEach(item => {
-    Object.entries(item.customizations || {}).forEach(([k, v]) => {
-      try {
-        const arr = JSON.parse(v);
-        if (Array.isArray(arr)) arr.forEach((url, i) => imageEntries.push({ url, name: `${item.product_name}_${k}_${i + 1}.jpg` }));
-      } catch (_) {}
-      if (typeof v === 'string' && v.startsWith('http')) imageEntries.push({ url: v, name: `${item.product_name}_${k}.jpg` });
-    });
-  });
+  const imageEntries = getAssetEntries(order);
+  if (!imageEntries.length) {
+    alert('אין תמונות בהזמנה זו');
+    return;
+  }
 
-  if (!imageEntries.length) { alert('אין תמונות בהזמנה זו'); return; }
-
-  // Dynamic import JSZip
   const { default: JSZip } = await import('https://esm.sh/jszip@3.10.1');
   const zip = new JSZip();
   const folder = zip.folder(`order_${order.order_number}`);
@@ -50,7 +79,7 @@ export default function AdminOrders() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [selectedOrderId, setSelectedOrderId] = useState(null);
   const [zipping, setZipping] = useState(false);
 
   const { data: orders, isLoading, error } = useQuery({
@@ -59,19 +88,39 @@ export default function AdminOrders() {
     initialData: [],
   });
 
+  const {
+    data: selectedOrder,
+    isLoading: isSelectedOrderLoading,
+    error: selectedOrderError,
+  } = useQuery({
+    queryKey: ['admin-order', selectedOrderId],
+    queryFn: () => getOrderById(selectedOrderId),
+    enabled: !!selectedOrderId,
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, status }) => updateOrderStatus(id, status),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-orders'] }),
-    onError: (mutationError) => {
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-order', variables.id] });
+    },
+    onError: mutationError => {
       console.error('Admin order status update failed:', mutationError);
     },
   });
 
-  const filtered = orders.filter(o => {
-    const matchSearch = !search || o.order_number?.includes(search) || o.customer_name?.includes(search) || o.customer_phone?.includes(search);
-    const matchStatus = statusFilter === 'all' || o.status === statusFilter;
-    return matchSearch && matchStatus;
-  });
+  const filtered = useMemo(() => orders.filter(order => {
+    const searchValue = search.trim();
+    const matchesSearch = !searchValue
+      || order.order_number?.includes(searchValue)
+      || order.customer_name?.includes(searchValue)
+      || order.customer_phone?.includes(searchValue)
+      || order.customer_email?.includes(searchValue);
+    const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  }), [orders, search, statusFilter]);
+
+  const selectedOrderAssets = getAssetEntries(selectedOrder);
 
   return (
     <AdminLayout currentPage="AdminOrders">
@@ -86,7 +135,7 @@ export default function AdminOrders() {
           <SelectTrigger className="w-40 rounded-xl"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">כל הסטטוסים</SelectItem>
-            {Object.entries(statusLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+            {Object.entries(statusLabels).map(([key, value]) => <SelectItem key={key} value={key}>{value}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>
@@ -117,18 +166,18 @@ export default function AdminOrders() {
                   <td className="py-3 px-4 text-gray-500">{order.customer_phone}</td>
                   <td className="py-3 px-4 font-medium">₪{order.total?.toFixed(0)}</td>
                   <td className="py-3 px-4">
-                    <Select value={order.status} onValueChange={(v) => updateMutation.mutate({ id: order.id, status: v })}>
+                    <Select value={order.status} onValueChange={(value) => updateMutation.mutate({ id: order.id, status: value })}>
                       <SelectTrigger className="h-7 text-xs rounded-lg border-0 w-24">
                         <Badge className={`${statusColors[order.status]} text-xs`}>{statusLabels[order.status]}</Badge>
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(statusLabels).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
+                        {Object.entries(statusLabels).map(([key, value]) => <SelectItem key={key} value={key}>{value}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </td>
                   <td className="py-3 px-4 text-gray-500">{order.created_date && format(new Date(order.created_date), 'dd/MM/yyyy')}</td>
                   <td className="py-3 px-4">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(order)}><Eye className="w-4 h-4" /></Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedOrderId(order.id)}><Eye className="w-4 h-4" /></Button>
                   </td>
                 </tr>
               ))}
@@ -137,63 +186,119 @@ export default function AdminOrders() {
         </div>
       )}
 
-      <Dialog open={!!selectedOrder} onOpenChange={() => setSelectedOrder(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>הזמנה #{selectedOrder?.order_number}</DialogTitle></DialogHeader>
-          {selectedOrder && (
-            <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-3">
+      <Dialog open={!!selectedOrderId} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>הזמנה #{selectedOrder?.order_number || ''}</DialogTitle>
+          </DialogHeader>
+
+          {isSelectedOrderLoading ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-[#B68AD8]" /></div>
+          ) : selectedOrderError ? (
+            <div className="bg-red-50 text-red-700 rounded-2xl p-4">שגיאה בטעינת פרטי ההזמנה</div>
+          ) : selectedOrder ? (
+            <div className="space-y-5 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div><span className="text-gray-500">לקוח:</span> <strong>{selectedOrder.customer_name}</strong></div>
-                <div><span className="text-gray-500">טלפון:</span> <strong>{selectedOrder.customer_phone}</strong></div>
-                <div><span className="text-gray-500">אימייל:</span> <strong>{selectedOrder.customer_email}</strong></div>
-                <div><span className="text-gray-500">משלוח:</span> <strong>{selectedOrder.shipping_method === 'delivery' ? 'עד הבית' : selectedOrder.shipping_method === 'pickup_point' ? 'נקודת איסוף' : 'איסוף עצמי'}</strong></div>
-                {selectedOrder.shipping_address && <div className="col-span-2"><span className="text-gray-500">כתובת:</span> <strong>{selectedOrder.shipping_address}, {selectedOrder.shipping_city}</strong></div>}
+                <div><span className="text-gray-500">טלפון:</span> <strong>{selectedOrder.customer_phone || '-'}</strong></div>
+                <div><span className="text-gray-500">אימייל:</span> <strong>{selectedOrder.customer_email || '-'}</strong></div>
+                <div><span className="text-gray-500">משלוח:</span> <strong>{selectedOrder.shipping_method || '-'}</strong></div>
+                <div><span className="text-gray-500">עיר:</span> <strong>{selectedOrder.shipping_city || '-'}</strong></div>
+                <div><span className="text-gray-500">מיקוד:</span> <strong>{selectedOrder.postal_code || '-'}</strong></div>
+                <div className="md:col-span-2"><span className="text-gray-500">כתובת:</span> <strong>{selectedOrder.shipping_address || '-'} {selectedOrder.shipping_address_2 || ''}</strong></div>
+                <div><span className="text-gray-500">מקור:</span> <strong>{selectedOrder.source || '-'}</strong></div>
+                <div><span className="text-gray-500">סטטוס:</span> <strong>{statusLabels[selectedOrder.status] || selectedOrder.status}</strong></div>
               </div>
+
+              {selectedOrder.notes && (
+                <div className="border-t pt-3">
+                  <span className="text-gray-500">הערות:</span> <strong>{selectedOrder.notes}</strong>
+                </div>
+              )}
+
               <div className="border-t pt-3">
-                <h3 className="font-bold mb-2">פריטים:</h3>
-                {selectedOrder.items?.map((item, i) => (
-                  <div key={i} className="flex justify-between py-2 border-b last:border-0">
-                    <div>
-                      <p className="font-medium">{item.product_name} x{item.quantity}</p>
-                      {item.customizations && Object.keys(item.customizations).length > 0 && (
-                        <p className="text-gray-500 text-xs">{Object.entries(item.customizations).map(([k, v]) => `${k}: ${v}`).join(', ')}</p>
+                <h3 className="font-bold mb-3">פריטים</h3>
+                <div className="space-y-3">
+                  {selectedOrder.items.map(item => (
+                    <div key={item.id} className="rounded-2xl border border-gray-100 p-4 space-y-3">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                        <div>
+                          <p className="font-medium">{item.product_name}</p>
+                          <p className="text-xs text-gray-500">SKU: {item.sku || '-'}</p>
+                        </div>
+                        <div className="text-sm text-right">
+                          <div>כמות: <strong>{item.quantity}</strong></div>
+                          <div>מחיר יחידה: <strong>₪{item.unit_price.toFixed(0)}</strong></div>
+                          <div>שורה: <strong>₪{item.line_total.toFixed(0)}</strong></div>
+                        </div>
+                      </div>
+
+                      {Object.keys(item.customizations || {}).length > 0 && (
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <p className="font-medium mb-2">התאמות אישיות</p>
+                          <div className="space-y-1 text-xs text-gray-600">
+                            {Object.entries(item.customizations).map(([key, value]) => (
+                              <div key={key}>
+                                <span className="text-gray-500">{key}:</span> {formatCustomizationValue(value)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {item.order_item_assets?.length > 0 && (
+                        <div className="space-y-2">
+                          <p className="font-medium">קבצים מקושרים</p>
+                          <div className="flex flex-col gap-1">
+                            {item.order_item_assets.map(asset => (
+                              <a
+                                key={asset.id}
+                                href={asset.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-2 text-[#B68AD8] hover:underline"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                {asset.original_filename || asset.file_type || asset.file_url}
+                              </a>
+                            ))}
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <span className="font-medium">₪{item.total_price?.toFixed(0)}</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-              <div className="border-t pt-3 space-y-1">
-                <div className="flex justify-between"><span>סכום ביניים</span><span>₪{selectedOrder.subtotal?.toFixed(0)}</span></div>
-                {selectedOrder.discount_amount > 0 && <div className="flex justify-between text-green-600"><span>הנחה</span><span>-₪{selectedOrder.discount_amount?.toFixed(0)}</span></div>}
-                <div className="flex justify-between"><span>משלוח</span><span>₪{selectedOrder.shipping_cost?.toFixed(0)}</span></div>
-                <div className="flex justify-between font-bold text-lg"><span>סה"כ</span><span className="text-[#B68AD8]">₪{selectedOrder.total?.toFixed(0)}</span></div>
-              </div>
-              {selectedOrder.notes && <div className="border-t pt-3"><span className="text-gray-500">הערות:</span> <strong>{selectedOrder.notes}</strong></div>}
 
-              {/* Download ZIP button */}
-              {(() => {
-                const hasImages = (selectedOrder.items || []).some(item =>
-                  Object.values(item.customizations || {}).some(v => {
-                    try { const a = JSON.parse(v); return Array.isArray(a) && a.length > 0; } catch { return false; }
-                  })
-                );
-                return hasImages ? (
-                  <div className="border-t pt-3">
-                    <Button
-                      variant="outline"
-                      className="w-full rounded-xl gap-2"
-                      disabled={zipping}
-                      onClick={async () => { setZipping(true); await downloadImagesAsZip(selectedOrder); setZipping(false); }}
-                    >
-                      {zipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                      הורדת כל התמונות (ZIP)
-                    </Button>
-                  </div>
-                ) : null;
-              })()}
+              <div className="border-t pt-3 space-y-1">
+                <div className="flex justify-between font-bold text-lg">
+                  <span>סה"כ</span>
+                  <span className="text-[#B68AD8]">₪{selectedOrder.total?.toFixed(0)}</span>
+                </div>
+              </div>
+
+              {selectedOrderAssets.length > 0 && (
+                <div className="border-t pt-3">
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-xl gap-2"
+                    disabled={zipping}
+                    onClick={async () => {
+                      setZipping(true);
+                      try {
+                        await downloadImagesAsZip(selectedOrder);
+                      } finally {
+                        setZipping(false);
+                      }
+                    }}
+                  >
+                    {zipping ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    הורדת כל התמונות (ZIP)
+                  </Button>
+                </div>
+              )}
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </AdminLayout>

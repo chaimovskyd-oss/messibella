@@ -1,7 +1,7 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { useCart } from '@/components/store/CartContext';
 import { base44 } from '@/api/localClient';
-import { createOrder } from '@/services/orderService';
+import { createOrderWithItems } from '@/services/orderService';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -76,22 +76,30 @@ export default function Checkout() {
     try {
       const items = cart.map(item => ({
         product_id: item.product_id,
-        name: item.product_name,
+        product_name_snapshot: item.product_name,
         product_name: item.product_name,
+        sku: item.sku || '',
         quantity: item.quantity,
-        price: getDiscountedPrice(item),
         unit_price: getDiscountedPrice(item),
-        total_price: getItemTotal(item),
-        customizations: item.customizations
+        line_total: getItemTotal(item),
+        customization_data: item.customizations
       }));
 
-      const createdOrder = await createOrder({
+      const createdOrder = await createOrderWithItems({
+        order_number: `MSB-${Date.now().toString(36).toUpperCase()}`,
         customer_name: form.customer_name,
         phone: form.customer_phone,
-        items,
+        email: form.customer_email,
+        address_line1: form.shipping_address,
+        address_line2: '',
+        city: form.shipping_city,
+        postal_code: '',
+        delivery_type: form.shipping_method,
+        notes: form.notes,
         total_price: finalTotal,
-        status: 'new'
-      });
+        status: 'new',
+        source: 'website'
+      }, items);
 
       base44.functions.invoke('sendOrderEmail', {
         order: {
