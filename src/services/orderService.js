@@ -131,19 +131,34 @@ function normalizeOrder(order) {
 }
 
 function buildOrderPayload(orderInput) {
+  const {
+    customer_name,
+    phone,
+    email,
+    address_line1,
+    address_line2,
+    city,
+    postal_code,
+    delivery_type,
+    notes,
+    total_price,
+    status,
+    source,
+  } = orderInput || {};
+
   const payload = {
-    customer_name: orderInput.customer_name || '',
-    phone: orderInput.phone || '',
-    email: orderInput.email || '',
-    address_line1: orderInput.address_line1 || '',
-    address_line2: orderInput.address_line2 || '',
-    city: orderInput.city || '',
-    postal_code: orderInput.postal_code || '',
-    delivery_type: orderInput.delivery_type || '',
-    notes: orderInput.notes || '',
-    total_price: toNumber(orderInput.total_price),
-    status: orderInput.status || 'new',
-    source: orderInput.source || 'website',
+    customer_name: customer_name || '',
+    phone: phone || '',
+    email: email || '',
+    address_line1: address_line1 || '',
+    address_line2: address_line2 || '',
+    city: city || '',
+    postal_code: postal_code || '',
+    delivery_type: delivery_type || '',
+    notes: notes || '',
+    total_price: toNumber(total_price),
+    status: status || 'new',
+    source: source || 'website',
   };
 
   return Object.fromEntries(
@@ -170,8 +185,25 @@ function buildOrderItemPayload(orderId, cartItem) {
 
 export async function createOrderWithItems(orderInput, cartItems) {
   const orderPayload = buildOrderPayload(orderInput);
+  const {
+    items,
+    order_items,
+    customizations,
+    customization_data,
+    uploaded_files,
+    files,
+    assets,
+  } = orderInput || {};
 
   console.log('Supabase orders insert payload', orderPayload);
+  console.log('Supabase orders excluded header fields', {
+    hasItems: items !== undefined,
+    hasOrderItems: order_items !== undefined,
+    hasCustomizations: customizations !== undefined,
+    hasCustomizationData: customization_data !== undefined,
+    hasUploadedFiles: uploaded_files !== undefined || files !== undefined,
+    hasAssets: assets !== undefined,
+  });
 
   const { data: orderData, error: orderError } = await ordersTable()
     .insert([orderPayload])
