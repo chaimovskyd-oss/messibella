@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { finalizeOrderAssetReferences, isStorageAssetReference } from '@/services/uploadService';
 
 const ORDERS_SCHEMA = 'public';
 const ORDERS_TABLE = 'orders';
@@ -82,6 +83,10 @@ function ordersTable() {
 
 function orderItemsTable() {
   return supabase.schema(ORDERS_SCHEMA).from(ORDER_ITEMS_TABLE);
+}
+
+function orderItemAssetsTable() {
+  return supabase.schema(ORDERS_SCHEMA).from(ORDER_ITEM_ASSETS_TABLE);
 }
 
 function normalizeAsset(asset) {
@@ -183,6 +188,33 @@ function buildOrderItemPayload(orderId, cartItem) {
   };
 }
 
+function extractAssetReferences(value) {
+  if (Array.isArray(value)) {
+    return value.filter(isStorageAssetReference);
+  }
+
+  if (isStorageAssetReference(value)) {
+    return [value];
+  }
+
+  return [];
+}
+
+function buildOrderItemAssetsPayload(orderItemId, cartItem) {
+  const customizationData = sanitizeSerializable(cartItem.customization_data ?? cartItem.customizations ?? {}) || {};
+
+  return Object.values(customizationData)
+    .flatMap(extractAssetReferences)
+    .map((asset, index) => ({
+      order_item_id: orderItemId,
+      file_url: asset.file_url,
+      file_path: asset.file_path || '',
+      file_type: asset.file_type || 'application/octet-stream',
+      original_filename: asset.original_filename || `asset-${index + 1}`,
+      sort_order: toInteger(asset.sort_order ?? index),
+    }));
+}
+
 export async function createOrderWithItems(orderInput, cartItems) {
   const orderPayload = buildOrderPayload(orderInput);
   const {
@@ -215,10 +247,36 @@ export async function createOrderWithItems(orderInput, cartItems) {
     throw orderError;
   }
 
-  const orderItemsPayload = (cartItems || []).map(item => buildOrderItemPayload(orderData.id, item));
+  const finalizedCartItems = await Promise.all((cartItems || []).map(async (item, index) => {
+    const originalCustomizationData = sanitizeSerializable(item.customization_data ?? item.customizations ?? {}) || {};
+    try {
+      const finalizedCustomizationData = await finalizeOrderAssetReferences(originalCustomizationData, {
+        orderNumber: orderData.order_number,
+        phone: orderPayload.phone,
+      });
+
+      return {
+        ...item,
+        customization_data: finalizedCustomizationData,
+      };
+    } catch (assetError) {
+      logSupabaseOrderError('finalize-order-item-assets', assetError, {
+        orderId: orderData.id,
+        orderNumber: orderData.order_number,
+        phone: orderPayload.phone,
+        itemIndex: index,
+        payload: originalCustomizationData,
+      });
+      throw assetError;
+    }
+  }));
+
+  const orderItemsPayload = finalizedCartItems.map(item => buildOrderItemPayload(orderData.id, item));
 
   if (orderItemsPayload.length > 0) {
-    const { error: itemsError } = await orderItemsTable().insert(orderItemsPayload);
+    const { data: insertedItems, error: itemsError } = await orderItemsTable()
+      .insert(orderItemsPayload)
+      .select('*');
 
     if (itemsError) {
       logSupabaseOrderError('insert-order-items', itemsError, {
@@ -226,6 +284,22 @@ export async function createOrderWithItems(orderInput, cartItems) {
         payload: orderItemsPayload,
       });
       throw itemsError;
+    }
+
+    const orderItemAssetsPayload = (insertedItems || []).flatMap((insertedItem, index) =>
+      buildOrderItemAssetsPayload(insertedItem.id, finalizedCartItems[index] || {})
+    );
+
+    if (orderItemAssetsPayload.length > 0) {
+      const { error: assetsError } = await orderItemAssetsTable().insert(orderItemAssetsPayload);
+
+      if (assetsError) {
+        logSupabaseOrderError('insert-order-item-assets', assetsError, {
+          orderId: orderData.id,
+          payload: orderItemAssetsPayload,
+        });
+        throw assetsError;
+      }
     }
   }
 

@@ -29,6 +29,57 @@ const emptyProduct = {
   tags: [], is_active: true, display_order: 0
 };
 
+function OptionValuesEditor({ values, onChange, placeholder }) {
+  const [draft, setDraft] = useState('');
+
+  const addValue = () => {
+    const nextValue = draft.trim();
+    if (!nextValue) return;
+    if (values.includes(nextValue)) {
+      setDraft('');
+      return;
+    }
+    onChange([...values, nextValue]);
+    setDraft('');
+  };
+
+  const removeValue = (valueToRemove) => {
+    onChange(values.filter(value => value !== valueToRemove));
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <Input
+          placeholder={placeholder}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              addValue();
+            }
+          }}
+          className="rounded-lg h-9 text-sm"
+        />
+        <Button type="button" variant="outline" size="sm" className="rounded-lg" onClick={addValue}>
+          הוסף
+        </Button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {values.map(value => (
+          <Badge key={value} variant="secondary" className="gap-1 px-2 py-1">
+            {value}
+            <button type="button" onClick={() => removeValue(value)} className="text-gray-500 hover:text-red-500">
+              <X className="w-3 h-3" />
+            </button>
+          </Badge>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminProducts() {
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -338,11 +389,10 @@ export default function AdminProducts() {
                       </button>
                     </div>
                     {(opt.type === 'select' || opt.type === 'color') && (
-                      <Input
-                        placeholder="אפשרויות מופרדות בפסיק: אדום, כחול, ירוק"
-                        value={(opt.options || []).join(', ')}
-                        onChange={(e) => updateCustomOption(i, 'options', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-                        className="rounded-lg h-8 text-sm"
+                      <OptionValuesEditor
+                        values={opt.options || []}
+                        onChange={(nextOptions) => updateCustomOption(i, 'options', nextOptions)}
+                        placeholder={opt.type === 'color' ? 'הוסיפו צבע' : 'הוסיפו אפשרות'}
                       />
                     )}
                   </div>

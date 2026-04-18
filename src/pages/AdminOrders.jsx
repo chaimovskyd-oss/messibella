@@ -28,16 +28,6 @@ const statusColors = {
   cancelled: 'bg-red-100 text-red-700',
 };
 
-function tryParseJsonArray(value) {
-  if (typeof value !== 'string') return [];
-  try {
-    const parsed = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 function hasDisplayValue(value) {
   if (value == null) return false;
   if (typeof value === 'string') return value.trim() !== '';
@@ -46,37 +36,72 @@ function hasDisplayValue(value) {
   return true;
 }
 
+function normalizeNameList(value) {
+  if (!hasDisplayValue(value)) return [];
+  if (Array.isArray(value)) return value.map(String).map(item => item.trim()).filter(Boolean);
+  return String(value).split('\n').map(item => item.trim()).filter(Boolean);
+}
+
+function isAssetReference(value) {
+  return value && typeof value === 'object' && typeof value.file_url === 'string' && value.file_url.length > 0;
+}
+
+function extractAssetLinks(item) {
+  const persistedAssets = (item.order_item_assets || []).map(asset => ({
+    url: asset.file_url,
+    file_path: asset.file_path,
+    file_type: asset.file_type,
+    original_filename: asset.original_filename,
+    sort_order: asset.sort_order ?? 0,
+  }));
+
+  if (persistedAssets.length > 0) return persistedAssets;
+
+  return Object.values(item.customizations || {})
+    .flatMap(value => Array.isArray(value) ? value : [value])
+    .filter(isAssetReference)
+    .map((asset, index) => ({
+      url: asset.file_url,
+      file_path: asset.file_path || '',
+      file_type: asset.file_type || 'application/octet-stream',
+      original_filename: asset.original_filename || `asset-${index + 1}`,
+      sort_order: asset.sort_order ?? index,
+    }));
+}
+
+function extractDesignChoice(customizations) {
+  const match = Object.entries(customizations || {}).find(([key, value]) =>
+    hasDisplayValue(value) && /עיצוב|design|theme|style/i.test(key)
+  );
+  return match ? { label: match[0], value: String(match[1]) } : null;
+}
+
+function extractTextFields(customizations) {
+  return Object.entries(customizations || {}).filter(([key, value]) => {
+    if (!hasDisplayValue(value)) return false;
+    if (Array.isArray(value) || isAssetReference(value) || (typeof value === 'object' && value !== null)) return false;
+    if (/עיצוב|design|theme|style|name list|רשימת שמות/i.test(key)) return false;
+    return true;
+  });
+}
+
+function getCustomizationEntries(customizations) {
+  return Object.entries(customizations || {}).filter(([, value]) => {
+    if (!hasDisplayValue(value)) return false;
+    if (Array.isArray(value) && value.every(isAssetReference)) return false;
+    if (isAssetReference(value)) return false;
+    return true;
+  });
+}
+
 function formatCustomizationValue(value) {
   if (Array.isArray(value)) return value.join(', ');
   if (value && typeof value === 'object') return JSON.stringify(value);
   return String(value);
 }
 
-function getAssetEntries(order) {
-  const directAssets = (order?.items || []).flatMap(item =>
-    (item.order_item_assets || []).map(asset => ({
-      url: asset.file_url,
-      name: asset.original_filename || `${item.product_name}_${asset.file_type || 'asset'}`,
-    }))
-  );
-
-  const customizationAssets = (order?.items || []).flatMap(item =>
-    Object.entries(item.customizations || {}).flatMap(([key, value]) => {
-      if (typeof value === 'string' && value.startsWith('http')) {
-        return [{ url: value, name: `${item.product_name}_${key}.jpg` }];
-      }
-
-      return tryParseJsonArray(value)
-        .filter(url => typeof url === 'string' && url.startsWith('http'))
-        .map((url, index) => ({ url, name: `${item.product_name}_${key}_${index + 1}.jpg` }));
-    })
-  );
-
-  return [...directAssets, ...customizationAssets];
-}
-
 async function downloadImagesAsZip(order) {
-  const imageEntries = getAssetEntries(order);
+  const imageEntries = (order?.items || []).flatMap(extractAssetLinks);
   if (!imageEntries.length) {
     alert('אין תמונות בהזמנה זו');
     return;
@@ -86,10 +111,10 @@ async function downloadImagesAsZip(order) {
   const zip = new JSZip();
   const folder = zip.folder(`order_${order.order_number}`);
 
-  await Promise.all(imageEntries.map(async ({ url, name }) => {
-    const res = await fetch(url);
-    const blob = await res.blob();
-    folder.file(name, blob);
+  await Promise.all(imageEntries.map(async (entry, index) => {
+    const response = await fetch(entry.url);
+    const blob = await response.blob();
+    folder.file(entry.original_filename || `asset-${index + 1}`, blob);
   }));
 
   const content = await zip.generateAsync({ type: 'blob' });
@@ -153,7 +178,9 @@ export default function AdminOrders() {
     return matchesSearch && matchesStatus;
   }), [orders, search, statusFilter]);
 
-  const selectedOrderAssets = getAssetEntries(selectedOrder);
+  const itemCount = selectedOrder?.items?.length || 0;
+  const totalQuantity = (selectedOrder?.items || []).reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const selectedOrderAssets = (selectedOrder?.items || []).flatMap(extractAssetLinks);
 
   return (
     <AdminLayout currentPage="AdminOrders">
@@ -223,18 +250,11 @@ export default function AdminOrders() {
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="py-3 px-4 text-gray-500">
-                    {order.created_date && format(new Date(order.created_date), 'dd/MM/yyyy')}
-                  </td>
+                  <td className="py-3 px-4 text-gray-500">{order.created_date && format(new Date(order.created_date), 'dd/MM/yyyy')}</td>
                   <td className="py-3 px-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => setSelectedOrderId(order.id)}
-                    >
+                    <Button variant="ghost" size="sm" className="gap-2" onClick={() => setSelectedOrderId(order.id)}>
                       <Eye className="w-4 h-4" />
-                      View Details
+                      פרטים
                     </Button>
                   </td>
                 </tr>
@@ -245,7 +265,7 @@ export default function AdminOrders() {
       )}
 
       <Dialog open={!!selectedOrderId} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[88vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>פרטי הזמנה</DialogTitle>
           </DialogHeader>
@@ -261,19 +281,22 @@ export default function AdminOrders() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <DetailRow label="מספר הזמנה" value={selectedOrder.order_number} />
                 <DetailRow label="סטטוס" value={statusLabels[selectedOrder.status] || selectedOrder.status} />
-                <DetailRow
-                  label="תאריך יצירה"
-                  value={selectedOrder.created_date ? format(new Date(selectedOrder.created_date), 'dd/MM/yyyy HH:mm') : ''}
-                />
+                <DetailRow label="תאריך יצירה" value={selectedOrder.created_date ? format(new Date(selectedOrder.created_date), 'dd/MM/yyyy HH:mm') : ''} />
                 <DetailRow label="שם לקוח" value={selectedOrder.customer_name} />
                 <DetailRow label="טלפון" value={selectedOrder.customer_phone} />
                 <DetailRow label="אימייל" value={selectedOrder.customer_email} />
+                <DetailRow label="סוג משלוח" value={selectedOrder.shipping_method} />
                 <DetailRow label="כתובת" value={selectedOrder.shipping_address} />
                 <DetailRow label="כתובת 2" value={selectedOrder.shipping_address_2} />
                 <DetailRow label="עיר" value={selectedOrder.shipping_city} />
                 <DetailRow label="מיקוד" value={selectedOrder.postal_code} />
-                <DetailRow label="שיטת משלוח" value={selectedOrder.shipping_method} />
                 <DetailRow label="סה״כ" value={`₪${selectedOrder.total?.toFixed(0) || '0'}`} />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 rounded-2xl p-4">
+                <DetailRow label="מספר פריטים" value={itemCount} />
+                <DetailRow label="כמות כוללת" value={totalQuantity} />
+                <DetailRow label="קבצים מצורפים" value={selectedOrderAssets.length} />
               </div>
 
               <div className="border-t pt-3">
@@ -282,58 +305,100 @@ export default function AdminOrders() {
               </div>
 
               <div className="border-t pt-3">
-                <h3 className="font-bold mb-3">פריטים</h3>
-                <div className="space-y-3">
-                  {(selectedOrder.items || []).map(item => (
-                    <div key={item.id} className="rounded-2xl border border-gray-100 p-4 space-y-3">
-                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                        <div>
-                          <p className="font-medium">{item.product_name}</p>
-                          <p className="text-xs text-gray-500">SKU: {item.sku || '-'}</p>
-                        </div>
-                        <div className="text-sm text-right">
-                          <div>כמות: <strong>{item.quantity}</strong></div>
-                          <div>מחיר יחידה: <strong>₪{item.unit_price.toFixed(0)}</strong></div>
-                          <div>סכום שורה: <strong>₪{item.line_total.toFixed(0)}</strong></div>
-                        </div>
-                      </div>
+                <h3 className="font-bold mb-3">מוצרים בהזמנה</h3>
+                <div className="space-y-4">
+                  {(selectedOrder.items || []).map(item => {
+                    const assetLinks = extractAssetLinks(item);
+                    const nameListEntry = Object.entries(item.customizations || {}).find(([key]) => /רשימת שמות|names/i.test(key));
+                    const names = normalizeNameList(nameListEntry?.[1]);
+                    const designChoice = extractDesignChoice(item.customizations || {});
+                    const textFields = extractTextFields(item.customizations || {});
+                    const remainingEntries = getCustomizationEntries(item.customizations || {}).filter(([key]) =>
+                      key !== nameListEntry?.[0] && key !== designChoice?.label
+                    );
 
-                      {Object.entries(item.customizations || {}).filter(([, value]) => hasDisplayValue(value)).length > 0 && (
-                        <div className="bg-gray-50 rounded-xl p-3">
-                          <p className="font-medium mb-2">התאמות אישיות</p>
-                          <div className="space-y-1 text-xs text-gray-600">
-                            {Object.entries(item.customizations)
-                              .filter(([, value]) => hasDisplayValue(value))
-                              .map(([key, value]) => (
-                                <div key={key}>
-                                  <span className="text-gray-500">{key}:</span> {formatCustomizationValue(value)}
-                                </div>
-                              ))}
+                    return (
+                      <div key={item.id} className="rounded-2xl border border-gray-100 p-4 space-y-4">
+                        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-base text-gray-900">{item.product_name}</p>
+                            <p className="text-xs text-gray-500">Product ID: {item.product_id || '-'} | SKU: {item.sku || '-'}</p>
+                          </div>
+                          <div className="text-sm md:text-left bg-gray-50 rounded-xl px-3 py-2">
+                            <div>כמות: <strong>{item.quantity}</strong></div>
+                            <div>מחיר יחידה: <strong>₪{item.unit_price.toFixed(0)}</strong></div>
+                            <div>סכום שורה: <strong>₪{item.line_total.toFixed(0)}</strong></div>
                           </div>
                         </div>
-                      )}
 
-                      {item.order_item_assets?.length > 0 && (
-                        <div className="space-y-2">
-                          <p className="font-medium">קבצים מקושרים</p>
-                          <div className="flex flex-col gap-1">
-                            {item.order_item_assets.map(asset => (
-                              <a
-                                key={asset.id}
-                                href={asset.file_url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-2 text-[#B68AD8] hover:underline"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                {asset.original_filename || asset.file_type || asset.file_url}
-                              </a>
+                        {designChoice && (
+                          <div className="bg-[#F5B731]/10 rounded-xl p-3">
+                            <span className="text-gray-500">{designChoice.label}:</span>{' '}
+                            <strong>{designChoice.value}</strong>
+                          </div>
+                        )}
+
+                        {textFields.length > 0 && (
+                          <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+                            <p className="font-medium mb-1">טקסטים והתאמות</p>
+                            {textFields.map(([key, value]) => (
+                              <div key={key}>
+                                <span className="text-gray-500">{key}:</span> {formatCustomizationValue(value)}
+                              </div>
                             ))}
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        )}
+
+                        {names.length > 0 && (
+                          <div className="space-y-2">
+                            <p className="font-medium">רשימת שמות</p>
+                            <div className="flex flex-wrap gap-2">
+                              {names.map(name => (
+                                <Badge key={`${item.id}-${name}`} variant="secondary" className="px-3 py-1">
+                                  {name}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {remainingEntries.length > 0 && (
+                          <div className="bg-gray-50 rounded-xl p-3 space-y-1">
+                            <p className="font-medium mb-1">שדות נוספים</p>
+                            {remainingEntries.map(([key, value]) => (
+                              <div key={key}>
+                                <span className="text-gray-500">{key}:</span> {formatCustomizationValue(value)}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {assetLinks.length > 0 && (
+                          <div className="space-y-3">
+                            <p className="font-medium">תמונות / קבצים</p>
+                            <div className="flex flex-wrap gap-3">
+                              {assetLinks.map((asset, index) => (
+                                <div key={`${asset.file_path || asset.url}-${index}`} className="w-24">
+                                  <a href={asset.url} target="_blank" rel="noreferrer" className="block">
+                                    <img src={asset.url} alt={asset.original_filename} className="w-24 h-24 object-cover rounded-xl border border-gray-200" />
+                                  </a>
+                                  <div className="mt-2 space-y-1 text-xs">
+                                    <a href={asset.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[#B68AD8] hover:underline">
+                                      <ExternalLink className="w-3 h-3" />
+                                      פתיחה
+                                    </a>
+                                    <a href={asset.url} download={asset.original_filename} className="block text-[#B68AD8] hover:underline">
+                                      הורדה
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
