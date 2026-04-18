@@ -1,25 +1,55 @@
 import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getOrderById, getOrders, updateOrderStatus } from '@/services/orderService';
+import { format } from 'date-fns';
+import { Download, ExternalLink, Eye, Loader2, Search } from 'lucide-react';
 import AdminLayout from '@/components/admin/AdminLayout';
+import { getOrderById, getOrders, updateOrderStatus } from '@/services/orderService';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Badge } from '@/components/ui/badge';
-import { Search, Eye, Loader2, Download, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
 
-const statusLabels = { new: 'חדש', processing: 'בתהליך', ready: 'מוכן', shipped: 'נשלח', completed: 'הושלם', cancelled: 'בוטל' };
-const statusColors = { new: 'bg-blue-100 text-blue-700', processing: 'bg-yellow-100 text-yellow-700', ready: 'bg-purple-100 text-purple-700', shipped: 'bg-indigo-100 text-indigo-700', completed: 'bg-green-100 text-green-700', cancelled: 'bg-red-100 text-red-700' };
+const statusLabels = {
+  new: 'חדש',
+  processing: 'בתהליך',
+  ready: 'מוכן',
+  shipped: 'נשלח',
+  completed: 'הושלם',
+  cancelled: 'בוטל',
+};
+
+const statusColors = {
+  new: 'bg-blue-100 text-blue-700',
+  processing: 'bg-yellow-100 text-yellow-700',
+  ready: 'bg-purple-100 text-purple-700',
+  shipped: 'bg-indigo-100 text-indigo-700',
+  completed: 'bg-green-100 text-green-700',
+  cancelled: 'bg-red-100 text-red-700',
+};
 
 function tryParseJsonArray(value) {
+  if (typeof value !== 'string') return [];
   try {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
+}
+
+function hasDisplayValue(value) {
+  if (value == null) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
+}
+
+function formatCustomizationValue(value) {
+  if (Array.isArray(value)) return value.join(', ');
+  if (value && typeof value === 'object') return JSON.stringify(value);
+  return String(value);
 }
 
 function getAssetEntries(order) {
@@ -45,12 +75,6 @@ function getAssetEntries(order) {
   return [...directAssets, ...customizationAssets];
 }
 
-function formatCustomizationValue(value) {
-  if (Array.isArray(value)) return value.join(', ');
-  if (value && typeof value === 'object') return JSON.stringify(value);
-  return String(value);
-}
-
 async function downloadImagesAsZip(order) {
   const imageEntries = getAssetEntries(order);
   if (!imageEntries.length) {
@@ -73,6 +97,15 @@ async function downloadImagesAsZip(order) {
   link.href = URL.createObjectURL(content);
   link.download = `order_${order.order_number}_images.zip`;
   link.click();
+}
+
+function DetailRow({ label, value }) {
+  return (
+    <div>
+      <span className="text-gray-500">{label}:</span>{' '}
+      <strong>{hasDisplayValue(value) ? value : '-'}</strong>
+    </div>
+  );
 }
 
 export default function AdminOrders() {
@@ -110,12 +143,12 @@ export default function AdminOrders() {
   });
 
   const filtered = useMemo(() => orders.filter(order => {
-    const searchValue = search.trim();
-    const matchesSearch = !searchValue
-      || order.order_number?.includes(searchValue)
-      || order.customer_name?.includes(searchValue)
-      || order.customer_phone?.includes(searchValue)
-      || order.customer_email?.includes(searchValue);
+    const value = search.trim();
+    const matchesSearch = !value
+      || String(order.order_number || '').includes(value)
+      || String(order.customer_name || '').includes(value)
+      || String(order.customer_phone || '').includes(value)
+      || String(order.customer_email || '').includes(value);
     const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
     return matchesSearch && matchesStatus;
   }), [orders, search, statusFilter]);
@@ -129,19 +162,30 @@ export default function AdminOrders() {
       <div className="flex flex-wrap gap-3 mb-6">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input placeholder="חיפוש הזמנה..." value={search} onChange={(e) => setSearch(e.target.value)} className="pr-10 rounded-xl" />
+          <Input
+            placeholder="חיפוש הזמנה..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pr-10 rounded-xl"
+          />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-40 rounded-xl"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-40 rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">כל הסטטוסים</SelectItem>
-            {Object.entries(statusLabels).map(([key, value]) => <SelectItem key={key} value={key}>{value}</SelectItem>)}
+            {Object.entries(statusLabels).map(([key, label]) => (
+              <SelectItem key={key} value={key}>{label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
       {isLoading ? (
-        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-[#B68AD8]" /></div>
+        <div className="flex justify-center py-20">
+          <Loader2 className="w-8 h-8 animate-spin text-[#B68AD8]" />
+        </div>
       ) : error ? (
         <div className="bg-red-50 text-red-700 rounded-2xl p-4">שגיאה בטעינת ההזמנות</div>
       ) : (
@@ -168,16 +212,30 @@ export default function AdminOrders() {
                   <td className="py-3 px-4">
                     <Select value={order.status} onValueChange={(value) => updateMutation.mutate({ id: order.id, status: value })}>
                       <SelectTrigger className="h-7 text-xs rounded-lg border-0 w-24">
-                        <Badge className={`${statusColors[order.status]} text-xs`}>{statusLabels[order.status]}</Badge>
+                        <Badge className={`${statusColors[order.status]} text-xs`}>
+                          {statusLabels[order.status] || order.status}
+                        </Badge>
                       </SelectTrigger>
                       <SelectContent>
-                        {Object.entries(statusLabels).map(([key, value]) => <SelectItem key={key} value={key}>{value}</SelectItem>)}
+                        {Object.entries(statusLabels).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </td>
-                  <td className="py-3 px-4 text-gray-500">{order.created_date && format(new Date(order.created_date), 'dd/MM/yyyy')}</td>
+                  <td className="py-3 px-4 text-gray-500">
+                    {order.created_date && format(new Date(order.created_date), 'dd/MM/yyyy')}
+                  </td>
                   <td className="py-3 px-4">
-                    <Button variant="ghost" size="sm" onClick={() => setSelectedOrderId(order.id)}><Eye className="w-4 h-4" /></Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setSelectedOrderId(order.id)}
+                    >
+                      <Eye className="w-4 h-4" />
+                      View Details
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -189,37 +247,44 @@ export default function AdminOrders() {
       <Dialog open={!!selectedOrderId} onOpenChange={(open) => { if (!open) setSelectedOrderId(null); }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>הזמנה #{selectedOrder?.order_number || ''}</DialogTitle>
+            <DialogTitle>פרטי הזמנה</DialogTitle>
           </DialogHeader>
 
           {isSelectedOrderLoading ? (
-            <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-[#B68AD8]" /></div>
+            <div className="flex justify-center py-10">
+              <Loader2 className="w-6 h-6 animate-spin text-[#B68AD8]" />
+            </div>
           ) : selectedOrderError ? (
             <div className="bg-red-50 text-red-700 rounded-2xl p-4">שגיאה בטעינת פרטי ההזמנה</div>
           ) : selectedOrder ? (
             <div className="space-y-5 text-sm">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div><span className="text-gray-500">לקוח:</span> <strong>{selectedOrder.customer_name}</strong></div>
-                <div><span className="text-gray-500">טלפון:</span> <strong>{selectedOrder.customer_phone || '-'}</strong></div>
-                <div><span className="text-gray-500">אימייל:</span> <strong>{selectedOrder.customer_email || '-'}</strong></div>
-                <div><span className="text-gray-500">משלוח:</span> <strong>{selectedOrder.shipping_method || '-'}</strong></div>
-                <div><span className="text-gray-500">עיר:</span> <strong>{selectedOrder.shipping_city || '-'}</strong></div>
-                <div><span className="text-gray-500">מיקוד:</span> <strong>{selectedOrder.postal_code || '-'}</strong></div>
-                <div className="md:col-span-2"><span className="text-gray-500">כתובת:</span> <strong>{selectedOrder.shipping_address || '-'} {selectedOrder.shipping_address_2 || ''}</strong></div>
-                <div><span className="text-gray-500">מקור:</span> <strong>{selectedOrder.source || '-'}</strong></div>
-                <div><span className="text-gray-500">סטטוס:</span> <strong>{statusLabels[selectedOrder.status] || selectedOrder.status}</strong></div>
+                <DetailRow label="מספר הזמנה" value={selectedOrder.order_number} />
+                <DetailRow label="סטטוס" value={statusLabels[selectedOrder.status] || selectedOrder.status} />
+                <DetailRow
+                  label="תאריך יצירה"
+                  value={selectedOrder.created_date ? format(new Date(selectedOrder.created_date), 'dd/MM/yyyy HH:mm') : ''}
+                />
+                <DetailRow label="שם לקוח" value={selectedOrder.customer_name} />
+                <DetailRow label="טלפון" value={selectedOrder.customer_phone} />
+                <DetailRow label="אימייל" value={selectedOrder.customer_email} />
+                <DetailRow label="כתובת" value={selectedOrder.shipping_address} />
+                <DetailRow label="כתובת 2" value={selectedOrder.shipping_address_2} />
+                <DetailRow label="עיר" value={selectedOrder.shipping_city} />
+                <DetailRow label="מיקוד" value={selectedOrder.postal_code} />
+                <DetailRow label="שיטת משלוח" value={selectedOrder.shipping_method} />
+                <DetailRow label="סה״כ" value={`₪${selectedOrder.total?.toFixed(0) || '0'}`} />
               </div>
 
-              {selectedOrder.notes && (
-                <div className="border-t pt-3">
-                  <span className="text-gray-500">הערות:</span> <strong>{selectedOrder.notes}</strong>
-                </div>
-              )}
+              <div className="border-t pt-3">
+                <span className="text-gray-500">הערות:</span>{' '}
+                <strong>{hasDisplayValue(selectedOrder.notes) ? selectedOrder.notes : '-'}</strong>
+              </div>
 
               <div className="border-t pt-3">
                 <h3 className="font-bold mb-3">פריטים</h3>
                 <div className="space-y-3">
-                  {selectedOrder.items.map(item => (
+                  {(selectedOrder.items || []).map(item => (
                     <div key={item.id} className="rounded-2xl border border-gray-100 p-4 space-y-3">
                       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                         <div>
@@ -229,19 +294,21 @@ export default function AdminOrders() {
                         <div className="text-sm text-right">
                           <div>כמות: <strong>{item.quantity}</strong></div>
                           <div>מחיר יחידה: <strong>₪{item.unit_price.toFixed(0)}</strong></div>
-                          <div>שורה: <strong>₪{item.line_total.toFixed(0)}</strong></div>
+                          <div>סכום שורה: <strong>₪{item.line_total.toFixed(0)}</strong></div>
                         </div>
                       </div>
 
-                      {Object.keys(item.customizations || {}).length > 0 && (
+                      {Object.entries(item.customizations || {}).filter(([, value]) => hasDisplayValue(value)).length > 0 && (
                         <div className="bg-gray-50 rounded-xl p-3">
                           <p className="font-medium mb-2">התאמות אישיות</p>
                           <div className="space-y-1 text-xs text-gray-600">
-                            {Object.entries(item.customizations).map(([key, value]) => (
-                              <div key={key}>
-                                <span className="text-gray-500">{key}:</span> {formatCustomizationValue(value)}
-                              </div>
-                            ))}
+                            {Object.entries(item.customizations)
+                              .filter(([, value]) => hasDisplayValue(value))
+                              .map(([key, value]) => (
+                                <div key={key}>
+                                  <span className="text-gray-500">{key}:</span> {formatCustomizationValue(value)}
+                                </div>
+                              ))}
                           </div>
                         </div>
                       )}
@@ -267,13 +334,6 @@ export default function AdminOrders() {
                       )}
                     </div>
                   ))}
-                </div>
-              </div>
-
-              <div className="border-t pt-3 space-y-1">
-                <div className="flex justify-between font-bold text-lg">
-                  <span>סה"כ</span>
-                  <span className="text-[#B68AD8]">₪{selectedOrder.total?.toFixed(0)}</span>
                 </div>
               </div>
 
