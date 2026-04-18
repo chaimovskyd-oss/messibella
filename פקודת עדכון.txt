@@ -1,3 +1,1 @@
-git add .
-git commit -m "connect supabase orders"
-git push
+git add .; git commit -m "update"; git push
