@@ -1,5 +1,8 @@
 import { supabase } from '@/lib/supabaseClient';
 
+const ORDERS_SCHEMA = 'public';
+const ORDERS_TABLE = 'orders';
+
 function toNumber(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) ? numeric : 0;
@@ -21,6 +24,22 @@ function normalizeOrder(order) {
   };
 }
 
+function ordersTable() {
+  return supabase.schema(ORDERS_SCHEMA).from(ORDERS_TABLE);
+}
+
+function logSupabaseOrderError(action, error, extra = {}) {
+  console.error(`Supabase orders ${action} failed`, {
+    schema: ORDERS_SCHEMA,
+    table: ORDERS_TABLE,
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+    code: error?.code,
+    ...extra,
+  });
+}
+
 export async function createOrder(order) {
   const payload = {
     customer_name: order.customer_name,
@@ -30,14 +49,13 @@ export async function createOrder(order) {
     status: order.status || 'new',
   };
 
-  const { data, error } = await supabase
-    .from('orders')
+  const { data, error } = await ordersTable()
     .insert([payload])
     .select()
     .single();
 
   if (error) {
-    console.error('Error creating order in Supabase:', error);
+    logSupabaseOrderError('insert', error, { payload });
     throw error;
   }
 
@@ -45,13 +63,12 @@ export async function createOrder(order) {
 }
 
 export async function getOrders() {
-  const { data, error } = await supabase
-    .from('orders')
+  const { data, error } = await ordersTable()
     .select('*')
     .order('created_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching orders from Supabase:', error);
+    logSupabaseOrderError('select', error);
     throw error;
   }
 
@@ -59,15 +76,14 @@ export async function getOrders() {
 }
 
 export async function updateOrderStatus(id, status) {
-  const { data, error } = await supabase
-    .from('orders')
+  const { data, error } = await ordersTable()
     .update({ status })
     .eq('id', id)
     .select()
     .single();
 
   if (error) {
-    console.error(`Error updating order ${id} in Supabase:`, error);
+    logSupabaseOrderError('update', error, { id, status });
     throw error;
   }
 
