@@ -63,11 +63,11 @@ export function isStorageAssetReference(value) {
 }
 
 export async function uploadOrderAsset(file) {
-  const filePath = buildTemporaryPath(file);
+  const requestedPath = buildTemporaryPath(file);
 
-  const { error: uploadError } = await supabase.storage
+  const { data: uploadData, error: uploadError } = await supabase.storage
     .from(ORDER_ASSETS_BUCKET)
-    .upload(filePath, file, {
+    .upload(requestedPath, file, {
       cacheControl: '3600',
       upsert: false,
       contentType: file?.type || 'application/octet-stream',
@@ -77,13 +77,24 @@ export async function uploadOrderAsset(file) {
     logUploadError('upload', uploadError, {
       fileName: file?.name,
       fileType: file?.type,
-      filePath,
+      requestedPath,
     });
     throw uploadError;
   }
 
+  const storedPath = uploadData?.path || requestedPath;
+
+  console.log('Supabase order asset upload result', {
+    bucket: ORDER_ASSETS_BUCKET,
+    requestedPath,
+    storedPath,
+    uploadData,
+    fileName: file?.name,
+    fileType: file?.type,
+  });
+
   return {
-    file_path: filePath,
+    file_path: storedPath,
     file_url: null,
     preview_url: typeof URL !== 'undefined' ? URL.createObjectURL(file) : '',
     original_filename: file?.name || 'file',
@@ -105,6 +116,14 @@ async function moveAssetToOrderPath(asset, context) {
     orderNumber: context.orderNumber,
     phone: context.phone,
     extension,
+  });
+
+  console.log('Supabase order asset move request', {
+    bucket: ORDER_ASSETS_BUCKET,
+    fromPath: asset.file_path,
+    toPath: targetPath,
+    asset,
+    context,
   });
 
   const { error: moveError } = await supabase.storage

@@ -259,10 +259,23 @@ export async function createOrderWithItems(orderInput, cartItems) {
 
   const finalizedCartItems = await Promise.all((cartItems || []).map(async (item, index) => {
     const originalCustomizationData = sanitizeSerializable(item.customization_data ?? item.customizations ?? {}) || {};
+    console.log('Order asset finalize input', {
+      orderId: orderData.id,
+      orderNumber: orderData.order_number,
+      itemIndex: index,
+      originalCustomizationData,
+    });
     try {
       const finalizedCustomizationData = await finalizeOrderAssetReferences(originalCustomizationData, {
         orderNumber: orderData.order_number,
         phone: orderPayload.phone,
+      });
+
+      console.log('Order asset finalize output', {
+        orderId: orderData.id,
+        orderNumber: orderData.order_number,
+        itemIndex: index,
+        finalizedCustomizationData,
       });
 
       return {
