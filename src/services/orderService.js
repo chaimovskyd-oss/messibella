@@ -259,7 +259,7 @@ export async function createOrderWithItems(orderInput, cartItems) {
 
   const finalizedCartItems = await Promise.all((cartItems || []).map(async (item, index) => {
     const originalCustomizationData = sanitizeSerializable(item.customization_data ?? item.customizations ?? {}) || {};
-    console.log('Order asset finalize input', {
+    console.log('Order asset upload input', {
       orderId: orderData.id,
       orderNumber: orderData.order_number,
       itemIndex: index,
@@ -271,7 +271,7 @@ export async function createOrderWithItems(orderInput, cartItems) {
         phone: orderPayload.phone,
       });
 
-      console.log('Order asset finalize output', {
+      console.log('Order asset upload output', {
         orderId: orderData.id,
         orderNumber: orderData.order_number,
         itemIndex: index,
@@ -283,7 +283,7 @@ export async function createOrderWithItems(orderInput, cartItems) {
         customization_data: finalizedCustomizationData,
       };
     } catch (assetError) {
-      logSupabaseOrderError('finalize-order-item-assets', assetError, {
+      logSupabaseOrderError('upload-order-item-assets', assetError, {
         orderId: orderData.id,
         orderNumber: orderData.order_number,
         phone: orderPayload.phone,

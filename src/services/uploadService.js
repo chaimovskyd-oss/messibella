@@ -46,107 +46,95 @@ function createRandomId() {
   return crypto.randomUUID();
 }
 
-function buildTemporaryPath(file) {
-  const extension = resolveExtension(file);
-  return `temp/${createRandomId()}.${extension}`;
-}
-
-function buildFinalPath({ orderNumber, phone, extension }) {
+export function buildFinalOrderAssetPath({ orderNumber, phone, file }) {
+  const extension = sanitizeAsciiSegment(resolveExtension(file), 'bin').toLowerCase();
   const safeOrderNumber = sanitizeAsciiSegment(orderNumber, 'unknown-order');
   const safePhone = sanitizePhoneDigits(phone);
-  const safeExtension = sanitizeAsciiSegment(extension, 'bin').toLowerCase();
-  return `orders/${safeOrderNumber}/${safePhone}/${createRandomId()}.${safeExtension}`;
+  return `orders/${safeOrderNumber}/${safePhone}/${createRandomId()}.${extension}`;
 }
 
-export function isStorageAssetReference(value) {
-  return isOrderAssetReference(value);
+export function createPendingOrderAsset(file) {
+  return {
+    file_path: '',
+    file_url: null,
+    preview_url: typeof URL !== 'undefined' ? URL.createObjectURL(file) : '',
+    original_filename: file?.name || 'file',
+    file_type: file?.type || 'application/octet-stream',
+    pending_file: file,
+  };
 }
 
-export async function uploadOrderAsset(file) {
-  const requestedPath = buildTemporaryPath(file);
+export async function uploadOrderAsset(file, context) {
+  if (!context?.orderNumber) {
+    const missingContextError = new Error('Cannot upload order asset without orderNumber');
+    logUploadError('missing-order-context', missingContextError, {
+      fileName: file?.name,
+      fileType: file?.type,
+      context,
+    });
+    throw missingContextError;
+  }
+
+  const filePath = buildFinalOrderAssetPath({
+    orderNumber: context.orderNumber,
+    phone: context.phone,
+    file,
+  });
 
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from(ORDER_ASSETS_BUCKET)
-    .upload(requestedPath, file, {
+    .upload(filePath, file, {
       cacheControl: '3600',
       upsert: false,
       contentType: file?.type || 'application/octet-stream',
     });
 
   if (uploadError) {
-    logUploadError('upload', uploadError, {
+    logUploadError('upload-final', uploadError, {
       fileName: file?.name,
       fileType: file?.type,
-      requestedPath,
+      filePath,
+      orderNumber: context.orderNumber,
+      phone: context.phone,
     });
     throw uploadError;
   }
 
-  const storedPath = uploadData?.path || requestedPath;
+  const storedPath = uploadData?.path || filePath;
+
+  if (!storedPath) {
+    const missingPathError = new Error('Supabase upload completed without a stored file path');
+    logUploadError('missing-stored-path', missingPathError, {
+      fileName: file?.name,
+      fileType: file?.type,
+      filePath,
+      uploadData,
+      context,
+    });
+    throw missingPathError;
+  }
 
   console.log('Supabase order asset upload result', {
     bucket: ORDER_ASSETS_BUCKET,
-    requestedPath,
+    requestedPath: filePath,
     storedPath,
     uploadData,
     fileName: file?.name,
     fileType: file?.type,
+    orderNumber: context.orderNumber,
+    phone: context.phone,
   });
 
   return {
     file_path: storedPath,
     file_url: null,
-    preview_url: typeof URL !== 'undefined' ? URL.createObjectURL(file) : '',
     original_filename: file?.name || 'file',
     file_type: file?.type || 'application/octet-stream',
   };
 }
 
-async function moveAssetToOrderPath(asset, context) {
-  if (!isStorageAssetReference(asset)) return asset;
-  if (!String(asset.file_path || '').startsWith('temp/')) {
-    return toPersistedOrderAsset(asset);
-  }
-
-  const extension = resolveExtension({
-    name: asset.original_filename,
-    type: asset.file_type,
-  });
-  const targetPath = buildFinalPath({
-    orderNumber: context.orderNumber,
-    phone: context.phone,
-    extension,
-  });
-
-  console.log('Supabase order asset move request', {
-    bucket: ORDER_ASSETS_BUCKET,
-    fromPath: asset.file_path,
-    toPath: targetPath,
-    asset,
-    context,
-  });
-
-  const { error: moveError } = await supabase.storage
-    .from(ORDER_ASSETS_BUCKET)
-    .move(asset.file_path, targetPath);
-
-  if (moveError) {
-    logUploadError('move', moveError, {
-      sourcePath: asset.file_path,
-      targetPath,
-      orderNumber: context.orderNumber,
-      phone: context.phone,
-    });
-    throw moveError;
-  }
-
-  return {
-    file_path: targetPath,
-    file_url: null,
-    original_filename: asset.original_filename || 'file',
-    file_type: asset.file_type || 'application/octet-stream',
-    sort_order: asset.sort_order ?? 0,
-  };
+export function isStorageAssetReference(value) {
+  return isOrderAssetReference(value);
 }
 
 async function finalizeValue(value, context) {
@@ -155,7 +143,19 @@ async function finalizeValue(value, context) {
   }
 
   if (isStorageAssetReference(value)) {
-    return moveAssetToOrderPath(value, context);
+    if (value.pending_file instanceof File) {
+      const uploadedAsset = await uploadOrderAsset(value.pending_file, context);
+      return {
+        ...uploadedAsset,
+        sort_order: value.sort_order ?? 0,
+      };
+    }
+
+    if (!value.file_path && !value.file_url) {
+      throw new Error('Order asset reference is missing both file_path and file_url');
+    }
+
+    return toPersistedOrderAsset(value);
   }
 
   if (value && typeof value === 'object') {

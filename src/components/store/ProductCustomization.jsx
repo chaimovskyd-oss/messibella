@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { uploadOrderAsset } from '@/services/uploadService';
+import { createPendingOrderAsset } from '@/services/uploadService';
 import { Loader2, Plus, Trash2, Upload, X, ZoomIn } from 'lucide-react';
 
 const colorOptions = {
@@ -94,10 +94,10 @@ function ImageUploadField({ label, value, onChange }) {
 
     setUploading(true);
     try {
-      const uploaded = await Promise.all(files.map(async (file, index) => ({
-        ...(await uploadOrderAsset(file)),
+      const uploaded = files.map((file, index) => ({
+        ...createPendingOrderAsset(file),
         sort_order: images.length + index,
-      })));
+      }));
       onChange([...images, ...uploaded]);
     } catch (error) {
       console.error('Customization asset upload failed:', error);
