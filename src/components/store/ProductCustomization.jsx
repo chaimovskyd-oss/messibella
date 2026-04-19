@@ -118,8 +118,8 @@ function ImageUploadField({ label, value, onChange }) {
     <div>
       <div className="flex flex-wrap gap-2 mb-2">
         {images.map((image, index) => (
-          <div key={`${image.file_path || image.file_url}-${index}`} className="relative w-20 h-20">
-            <img src={image.file_url} alt="" className="w-full h-full object-cover rounded-xl border" />
+          <div key={`${image.file_path || image.file_url || image.preview_url}-${index}`} className="relative w-20 h-20">
+            <img src={image.preview_url || image.file_url} alt="" className="w-full h-full object-cover rounded-xl border" />
             <button
               type="button"
               onClick={() => removeImage(index)}

@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
+import { hydrateOrderAssetReferences, toPersistedOrderAsset } from '@/services/orderAssetService';
 import { finalizeOrderAssetReferences, isStorageAssetReference } from '@/services/uploadService';
 
 const ORDERS_SCHEMA = 'public';
@@ -92,6 +93,7 @@ function orderItemAssetsTable() {
 function normalizeAsset(asset) {
   return {
     ...asset,
+    file_url: asset?.file_url || null,
     sort_order: toInteger(asset?.sort_order),
   };
 }
@@ -205,14 +207,17 @@ function buildOrderItemAssetsPayload(orderItemId, cartItem) {
 
   return Object.values(customizationData)
     .flatMap(extractAssetReferences)
-    .map((asset, index) => ({
+    .map((asset, index) => {
+      const persistedAsset = toPersistedOrderAsset(asset);
+      return ({
       order_item_id: orderItemId,
-      file_url: asset.file_url,
-      file_path: asset.file_path || '',
-      file_type: asset.file_type || 'application/octet-stream',
-      original_filename: asset.original_filename || `asset-${index + 1}`,
-      sort_order: toInteger(asset.sort_order ?? index),
-    }));
+      file_url: persistedAsset.file_url,
+      file_path: persistedAsset.file_path || '',
+      file_type: persistedAsset.file_type || 'application/octet-stream',
+      original_filename: persistedAsset.original_filename || `asset-${index + 1}`,
+      sort_order: toInteger(persistedAsset.sort_order ?? index),
+    });
+    });
 }
 
 export async function createOrderWithItems(orderInput, cartItems) {
@@ -332,7 +337,22 @@ export async function getOrderById(orderId) {
     throw error;
   }
 
-  return normalizeOrder(data);
+  const normalizedOrder = normalizeOrder(data);
+  const hydratedItems = await Promise.all((normalizedOrder.items || []).map(async (item) => ({
+    ...item,
+    customization_data: await hydrateOrderAssetReferences(item.customization_data || {}),
+    customizations: await hydrateOrderAssetReferences(item.customizations || {}),
+    order_item_assets: await Promise.all((item.order_item_assets || []).map(async (asset) => ({
+      ...asset,
+      signed_url: await hydrateOrderAssetReferences(asset).then(result => result?.signed_url || result?.file_url || ''),
+    }))),
+  })));
+
+  return {
+    ...normalizedOrder,
+    items: hydratedItems,
+    order_items: hydratedItems,
+  };
 }
 
 export async function updateOrderStatus(id, status) {

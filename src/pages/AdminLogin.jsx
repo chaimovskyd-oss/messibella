@@ -6,15 +6,16 @@ import { ADMIN_EMAIL } from '@/data/defaultContent';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { createPageUrl } from '@/utils';
 
 export default function AdminLogin() {
-  const { isAuthenticated, loginAdmin } = useAuth();
+  const { isAuthenticated, authError, loginAdmin } = useAuth();
   const [form, setForm] = useState({ email: ADMIN_EMAIL, password: '' });
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   if (isAuthenticated) {
-    return <Navigate to="/AdminDashboard" replace />;
+    return <Navigate to={createPageUrl('AdminDashboard')} replace />;
   }
 
   const handleSubmit = async (event) => {
@@ -24,7 +25,7 @@ export default function AdminLogin() {
 
     try {
       await loginAdmin(form);
-      window.location.href = '/AdminDashboard';
+      window.location.href = createPageUrl('AdminDashboard');
     } catch (loginError) {
       setError(loginError?.message || 'ההתחברות נכשלה');
     } finally {
@@ -40,12 +41,12 @@ export default function AdminLogin() {
             <LockKeyhole className="w-7 h-7" />
           </div>
           <h1 className="text-2xl font-extrabold text-gray-900">כניסה לניהול האתר</h1>
-          <p className="text-gray-500 mt-2">הכניסה מוגנת במייל מורשה ובסיסמה</p>
+          <p className="text-gray-500 mt-2">התחברות אדמין דרך Supabase Auth</p>
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div>
-            <Label>מייל מורשה</Label>
+            <Label>מייל</Label>
             <div className="relative mt-1">
               <Mail className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input
@@ -69,9 +70,9 @@ export default function AdminLogin() {
             />
           </div>
 
-          {error && (
-            <div className="rounded-xl bg-red-50 text-red-700 px-4 py-3 text-sm">
-              {error}
+          {(error || authError?.type === 'not_admin') && (
+            <div className="rounded-xl bg-red-50 text-red-700 px-4 py-3 text-sm whitespace-pre-line">
+              {error || authError?.message}
             </div>
           )}
 
@@ -80,7 +81,7 @@ export default function AdminLogin() {
             disabled={submitting}
             className="w-full bg-[#B68AD8] hover:bg-[#9b6fc0] rounded-2xl h-12"
           >
-            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'כניסה'}
+            {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'כניסה כאדמין'}
           </Button>
         </form>
       </div>

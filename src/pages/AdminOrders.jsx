@@ -43,7 +43,11 @@ function normalizeNameList(value) {
 }
 
 function isAssetReference(value) {
-  return value && typeof value === 'object' && typeof value.file_url === 'string' && value.file_url.length > 0;
+  return value && typeof value === 'object' && (
+    (typeof value.file_url === 'string' && value.file_url.length > 0)
+    || (typeof value.file_path === 'string' && value.file_path.length > 0)
+    || (typeof value.signed_url === 'string' && value.signed_url.length > 0)
+  );
 }
 
 function isLegacyBase64Image(value) {
@@ -60,7 +64,7 @@ function hasLegacyAssetData(customizations) {
 
 function extractAssetLinks(item) {
   const persistedAssets = (item.order_item_assets || []).map(asset => ({
-    url: asset.file_url,
+    url: asset.signed_url || asset.file_url || '',
     file_path: asset.file_path,
     file_type: asset.file_type,
     original_filename: asset.original_filename,
@@ -73,7 +77,7 @@ function extractAssetLinks(item) {
     .flatMap(value => Array.isArray(value) ? value : [value])
     .filter(isAssetReference)
     .map((asset, index) => ({
-      url: asset.file_url,
+      url: asset.signed_url || asset.file_url || '',
       file_path: asset.file_path || '',
       file_type: asset.file_type || 'application/octet-stream',
       original_filename: asset.original_filename || `asset-${index + 1}`,
@@ -113,7 +117,7 @@ function formatCustomizationValue(value) {
 }
 
 async function downloadImagesAsZip(order) {
-  const imageEntries = (order?.items || []).flatMap(extractAssetLinks);
+  const imageEntries = (order?.items || []).flatMap(extractAssetLinks).filter(entry => entry.url);
   if (!imageEntries.length) {
     alert('אין תמונות בהזמנה זו');
     return;
@@ -390,7 +394,7 @@ export default function AdminOrders() {
                           <div className="space-y-3">
                             <p className="font-medium">תמונות / קבצים</p>
                             <div className="flex flex-wrap gap-3">
-                              {assetLinks.map((asset, index) => (
+                              {assetLinks.filter(asset => asset.url).map((asset, index) => (
                                 <div key={`${asset.file_path || asset.url}-${index}`} className="w-24">
                                   <a href={asset.url} target="_blank" rel="noreferrer" className="block">
                                     <img src={asset.url} alt={asset.original_filename} className="w-24 h-24 object-cover rounded-xl border border-gray-200" />

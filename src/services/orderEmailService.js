@@ -10,6 +10,7 @@ function normalizeAssets(order) {
     (item.order_item_assets || []).map(asset => ({
       product_name: item.product_name || item.product_name_snapshot,
       original_filename: asset.original_filename,
+      file_path: asset.file_path,
       file_url: asset.file_url,
     }))
   );

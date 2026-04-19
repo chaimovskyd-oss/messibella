@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabaseClient';
 import { getDefaultCollection } from '@/data/defaultContent';
 
-const STORAGE_BUCKET = import.meta.env.VITE_SITE_CONTENT_BUCKET || 'order-assets';
+const STORAGE_BUCKET = import.meta.env.VITE_SITE_CONTENT_BUCKET || 'site-content';
 const STORAGE_PREFIX = 'site-content';
 const STORAGE_KEY_PREFIX = 'masibala_remote_';
 

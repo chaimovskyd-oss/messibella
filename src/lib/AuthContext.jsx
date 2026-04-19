@@ -1,87 +1,92 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { ADMIN_EMAIL, ADMIN_PASSWORD } from '@/data/defaultContent';
-
-const SESSION_KEY = 'masibala_admin_session';
+import { supabase } from '@/lib/supabaseClient';
+import { getAdminAuthState, isCurrentUserAdmin, signInAdmin, signOutAdmin } from '@/services/adminAuthService';
+import { createPageUrl } from '@/utils';
 
 const AuthContext = createContext({
   user: null,
+  session: null,
   isAuthenticated: false,
+  isAdmin: false,
   isLoadingAuth: true,
   isLoadingPublicSettings: false,
   authError: null,
   appPublicSettings: null,
   authChecked: false,
   loginAdmin: async () => {},
-  logout: () => {},
+  logout: async () => {},
   navigateToLogin: () => {},
   checkAppState: () => {},
-  checkUserAuth: () => {},
+  checkUserAuth: async () => {},
+  isCurrentUserAdmin: async () => false,
 });
 
-function getStoredSession() {
-  if (typeof window === 'undefined') return null;
-  const stored = window.sessionStorage.getItem(SESSION_KEY);
-  if (!stored) return null;
-
-  try {
-    return JSON.parse(stored);
-  } catch {
-    window.sessionStorage.removeItem(SESSION_KEY);
-    return null;
-  }
-}
-
 export function AuthProvider({ children }) {
+  const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [authChecked, setAuthChecked] = useState(false);
   const [authError, setAuthError] = useState(null);
 
-  useEffect(() => {
-    const session = getStoredSession();
-    if (session?.email === ADMIN_EMAIL) {
-      setUser(session);
-      setIsAuthenticated(true);
+  const refreshAuthState = async () => {
+    setIsLoadingAuth(true);
+
+    try {
+      const nextState = await getAdminAuthState();
+      setSession(nextState.session);
+      setUser(nextState.user);
+      setIsAdmin(nextState.isAdmin);
+      setAuthError(nextState.user && !nextState.isAdmin
+        ? { type: 'not_admin', message: 'המשתמש מחובר אך לא מוגדר כאדמין.' }
+        : null);
+    } catch (error) {
+      setSession(null);
+      setUser(null);
+      setIsAdmin(false);
+      setAuthError(error);
+    } finally {
+      setAuthChecked(true);
+      setIsLoadingAuth(false);
     }
-    setAuthChecked(true);
-    setIsLoadingAuth(false);
+  };
+
+  useEffect(() => {
+    refreshAuthState();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      refreshAuthState();
+    });
+
+    return () => {
+      listener?.subscription?.unsubscribe();
+    };
   }, []);
 
   const loginAdmin = async ({ email, password }) => {
-    if (email?.trim().toLowerCase() !== ADMIN_EMAIL || password !== ADMIN_PASSWORD) {
-      const error = { type: 'invalid_credentials', message: 'פרטי ההתחברות שגויים' };
-      setAuthError(error);
-      throw error;
-    }
-
-    const nextUser = {
-      id: 'admin',
-      full_name: 'Admin',
-      email: ADMIN_EMAIL,
-      role: 'admin',
-    };
-
-    window.sessionStorage.setItem(SESSION_KEY, JSON.stringify(nextUser));
-    setUser(nextUser);
-    setIsAuthenticated(true);
-    setAuthChecked(true);
     setAuthError(null);
-    return nextUser;
+    const nextState = await signInAdmin({ email, password });
+    setSession(nextState.session);
+    setUser(nextState.user);
+    setIsAdmin(true);
+    setAuthChecked(true);
+    return nextState.user;
   };
 
-  const logout = () => {
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem(SESSION_KEY);
-      window.location.href = '/';
-    }
+  const logout = async () => {
+    await signOutAdmin();
+    setSession(null);
     setUser(null);
-    setIsAuthenticated(false);
+    setIsAdmin(false);
+    setAuthError(null);
+    window.location.href = createPageUrl('AdminLogin');
   };
 
   const value = useMemo(() => ({
     user,
-    isAuthenticated,
+    session,
+    isAuthenticated: Boolean(session && user && isAdmin),
+    isAdmin,
     isLoadingAuth,
     isLoadingPublicSettings: false,
     authError,
@@ -90,17 +95,12 @@ export function AuthProvider({ children }) {
     loginAdmin,
     logout,
     navigateToLogin: () => {
-      window.location.href = '/AdminLogin';
+      window.location.href = createPageUrl('AdminLogin');
     },
     checkAppState: () => {},
-    checkUserAuth: () => {
-      const session = getStoredSession();
-      setUser(session);
-      setIsAuthenticated(Boolean(session?.email === ADMIN_EMAIL));
-      setAuthChecked(true);
-      setIsLoadingAuth(false);
-    },
-  }), [authChecked, authError, isAuthenticated, isLoadingAuth, user]);
+    checkUserAuth: refreshAuthState,
+    isCurrentUserAdmin: async () => isCurrentUserAdmin(user?.id),
+  }), [authChecked, authError, isAdmin, isLoadingAuth, session, user]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

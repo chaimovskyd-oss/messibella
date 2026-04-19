@@ -1,6 +1,5 @@
 import { supabase } from '@/lib/supabaseClient';
-
-const ORDER_ASSETS_BUCKET = 'order-assets';
+import { isOrderAssetReference, ORDER_ASSETS_BUCKET, toPersistedOrderAsset } from '@/services/orderAssetService';
 
 function logUploadError(action, error, extra = {}) {
   console.error(`Supabase upload ${action} failed`, {
@@ -59,13 +58,8 @@ function buildFinalPath({ orderNumber, phone, extension }) {
   return `orders/${safeOrderNumber}/${safePhone}/${createRandomId()}.${safeExtension}`;
 }
 
-function getPublicUrl(filePath) {
-  const { data } = supabase.storage.from(ORDER_ASSETS_BUCKET).getPublicUrl(filePath);
-  return data?.publicUrl || '';
-}
-
 export function isStorageAssetReference(value) {
-  return value && typeof value === 'object' && typeof value.file_url === 'string' && value.file_url.length > 0;
+  return isOrderAssetReference(value);
 }
 
 export async function uploadOrderAsset(file) {
@@ -89,8 +83,9 @@ export async function uploadOrderAsset(file) {
   }
 
   return {
-    file_url: getPublicUrl(filePath),
     file_path: filePath,
+    file_url: null,
+    preview_url: typeof URL !== 'undefined' ? URL.createObjectURL(file) : '',
     original_filename: file?.name || 'file',
     file_type: file?.type || 'application/octet-stream',
   };
@@ -98,7 +93,9 @@ export async function uploadOrderAsset(file) {
 
 async function moveAssetToOrderPath(asset, context) {
   if (!isStorageAssetReference(asset)) return asset;
-  if (!String(asset.file_path || '').startsWith('temp/')) return asset;
+  if (!String(asset.file_path || '').startsWith('temp/')) {
+    return toPersistedOrderAsset(asset);
+  }
 
   const extension = resolveExtension({
     name: asset.original_filename,
@@ -125,9 +122,11 @@ async function moveAssetToOrderPath(asset, context) {
   }
 
   return {
-    ...asset,
     file_path: targetPath,
-    file_url: getPublicUrl(targetPath),
+    file_url: null,
+    original_filename: asset.original_filename || 'file',
+    file_type: asset.file_type || 'application/octet-stream',
+    sort_order: asset.sort_order ?? 0,
   };
 }
 

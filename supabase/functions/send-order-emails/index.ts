@@ -1,9 +1,18 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY');
 const FROM_EMAIL = Deno.env.get('ORDER_FROM_EMAIL') || 'orders@messibella.online';
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL') || '';
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
+const ORDER_ASSETS_BUCKET = 'order-assets';
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const adminSupabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+  : null;
 
 function formatCurrency(value: number) {
   return `₪${Number(value || 0).toFixed(0)}`;
@@ -20,9 +29,43 @@ function buildItemsHtml(items: Array<Record<string, unknown>>) {
   `).join('');
 }
 
-function buildAssetsHtml(assets: Array<Record<string, unknown>>) {
+async function getAssetUrl(asset: Record<string, unknown>) {
+  const publicFallback = typeof asset.file_url === 'string' ? asset.file_url : '';
+  const filePath = typeof asset.file_path === 'string' ? asset.file_path : '';
+
+  if (!filePath || !adminSupabase) return publicFallback;
+
+  const { data, error } = await adminSupabase.storage
+    .from(ORDER_ASSETS_BUCKET)
+    .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+
+  if (error) {
+    console.error('Failed to create signed URL for order email asset', {
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+      filePath,
+    });
+    return publicFallback;
+  }
+
+  return data?.signedUrl || publicFallback;
+}
+
+async function buildAssetsHtml(assets: Array<Record<string, unknown>>) {
   if (!assets.length) return '<p>לא צורפו תמונות.</p>';
-  return `<ul>${assets.map(asset => `<li><a href="${asset.file_url}">${asset.original_filename || asset.product_name || 'קובץ'}</a></li>`).join('')}</ul>`;
+
+  const items = await Promise.all(assets.map(async asset => {
+    const assetUrl = await getAssetUrl(asset);
+    if (!assetUrl) {
+      return `<li>${asset.original_filename || asset.product_name || 'קובץ'} (ללא קישור זמין)</li>`;
+    }
+
+    return `<li><a href="${assetUrl}">${asset.original_filename || asset.product_name || 'קובץ'}</a></li>`;
+  }));
+
+  return `<ul>${items.join('')}</ul>`;
 }
 
 async function sendEmail(to: string, subject: string, html: string) {
@@ -70,7 +113,7 @@ Deno.serve(async (request) => {
     }
 
     const itemsHtml = buildItemsHtml(items);
-    const assetsHtml = buildAssetsHtml(assets);
+    const assetsHtml = await buildAssetsHtml(assets);
 
     await sendEmail(
       customerEmail,

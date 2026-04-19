@@ -1,4 +1,4 @@
-import { ADMIN_EMAIL } from '@/data/defaultContent';
+import { supabase } from '@/lib/supabaseClient';
 import { getCollection, saveCollection, uploadSiteAsset } from '@/services/siteContentService';
 
 function clone(value) {
@@ -102,18 +102,14 @@ export const localClient = {
   },
   auth: {
     async me() {
-      return {
-        id: 'local-admin',
-        full_name: 'מסיבלה',
-        email: ADMIN_EMAIL,
-        role: 'admin',
-      };
+      const { data } = await supabase.auth.getUser();
+      return data?.user || null;
     },
     redirectToLogin() {
-      window.location.href = '/AdminLogin';
+      window.location.href = '/admin/login';
     },
     logout() {
-      return Promise.resolve();
+      return supabase.auth.signOut();
     },
   },
   integrations: {
