@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabaseClient';
 import { getDefaultCollection } from '@/data/defaultContent';
 
 const STORAGE_BUCKET = import.meta.env.VITE_SITE_CONTENT_BUCKET || 'site-content';
-const STORAGE_PREFIX = 'site-content';
 const STORAGE_KEY_PREFIX = 'masibala_remote_';
 
 function clone(value) {
@@ -15,7 +14,7 @@ function getLocalStorage() {
 }
 
 function getCollectionPath(entityName) {
-  return `${STORAGE_PREFIX}/${entityName}.json`;
+  return `${entityName}.json`;
 }
 
 function readLocalBackup(entityName, fallback) {

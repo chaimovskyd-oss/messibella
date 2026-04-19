@@ -209,14 +209,19 @@ function buildOrderItemAssetsPayload(orderItemId, cartItem) {
     .flatMap(extractAssetReferences)
     .map((asset, index) => {
       const persistedAsset = toPersistedOrderAsset(asset);
-      return ({
+      const payload = {
       order_item_id: orderItemId,
-      file_url: persistedAsset.file_url,
       file_path: persistedAsset.file_path || '',
       file_type: persistedAsset.file_type || 'application/octet-stream',
       original_filename: persistedAsset.original_filename || `asset-${index + 1}`,
       sort_order: toInteger(persistedAsset.sort_order ?? index),
-    });
+      };
+
+      if (persistedAsset.file_url) {
+        payload.file_url = persistedAsset.file_url;
+      }
+
+      return payload;
     });
 }
 
@@ -296,12 +301,14 @@ export async function createOrderWithItems(orderInput, cartItems) {
     );
 
     if (orderItemAssetsPayload.length > 0) {
+      console.log('Supabase order_item_assets insert payload', orderItemAssetsPayload);
       const { error: assetsError } = await orderItemAssetsTable().insert(orderItemAssetsPayload);
 
       if (assetsError) {
         logSupabaseOrderError('insert-order-item-assets', assetsError, {
           orderId: orderData.id,
           payload: orderItemAssetsPayload,
+          fullError: assetsError,
         });
         throw assetsError;
       }
