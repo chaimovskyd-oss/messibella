@@ -1,6 +1,10 @@
 import { supabase } from '@/lib/supabaseClient';
 import { isOrderAssetReference, ORDER_ASSETS_BUCKET, toPersistedOrderAsset } from '@/services/orderAssetService';
 
+function isFileInstance(value) {
+  return typeof File !== 'undefined' && value instanceof File;
+}
+
 function logUploadError(action, error, extra = {}) {
   console.error(`Supabase upload ${action} failed`, {
     message: error?.message,
@@ -143,16 +147,52 @@ async function finalizeValue(value, context) {
   }
 
   if (isStorageAssetReference(value)) {
-    if (value.pending_file instanceof File) {
+    if (isFileInstance(value.pending_file)) {
+      console.log('Order asset before upload', {
+        orderNumber: context?.orderNumber,
+        phone: context?.phone,
+        asset: {
+          file_path: value.file_path || '',
+          file_url: value.file_url || null,
+          preview_url: value.preview_url || '',
+          original_filename: value.original_filename || 'file',
+          file_type: value.file_type || 'application/octet-stream',
+          sort_order: value.sort_order ?? 0,
+          hasPendingFile: true,
+        },
+      });
+
       const uploadedAsset = await uploadOrderAsset(value.pending_file, context);
-      return {
+      const finalizedAsset = {
         ...uploadedAsset,
         sort_order: value.sort_order ?? 0,
       };
+
+      console.log('Order asset after upload', {
+        orderNumber: context?.orderNumber,
+        phone: context?.phone,
+        asset: finalizedAsset,
+      });
+
+      return finalizedAsset;
     }
 
     if (!value.file_path && !value.file_url) {
-      throw new Error('Order asset reference is missing both file_path and file_url');
+      const missingAssetError = new Error('Order asset reference is missing both file_path and file_url');
+      logUploadError('invalid-asset-reference', missingAssetError, {
+        orderNumber: context?.orderNumber,
+        phone: context?.phone,
+        asset: {
+          file_path: value?.file_path || '',
+          file_url: value?.file_url || null,
+          preview_url: value?.preview_url || '',
+          original_filename: value?.original_filename || 'file',
+          file_type: value?.file_type || 'application/octet-stream',
+          sort_order: value?.sort_order ?? 0,
+          hasPendingFile: false,
+        },
+      });
+      throw missingAssetError;
     }
 
     return toPersistedOrderAsset(value);

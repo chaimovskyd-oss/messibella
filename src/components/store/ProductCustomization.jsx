@@ -94,10 +94,27 @@ function ImageUploadField({ label, value, onChange }) {
 
     setUploading(true);
     try {
-      const uploaded = files.map((file, index) => ({
-        ...createPendingOrderAsset(file),
-        sort_order: images.length + index,
-      }));
+      const uploaded = files.map((file, index) => {
+        const pendingAsset = {
+          ...createPendingOrderAsset(file),
+          sort_order: images.length + index,
+        };
+
+        console.log('Order asset pending preview created', {
+          label,
+          asset: {
+            file_path: pendingAsset.file_path,
+            file_url: pendingAsset.file_url,
+            preview_url: pendingAsset.preview_url,
+            original_filename: pendingAsset.original_filename,
+            file_type: pendingAsset.file_type,
+            sort_order: pendingAsset.sort_order,
+            hasPendingFile: !!pendingAsset.pending_file,
+          },
+        });
+
+        return pendingAsset;
+      });
       onChange([...images, ...uploaded]);
     } catch (error) {
       console.error('Customization asset upload failed:', error);

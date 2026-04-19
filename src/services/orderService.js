@@ -64,6 +64,10 @@ function sanitizeSerializable(value) {
   return undefined;
 }
 
+function getRawCustomizationData(cartItem) {
+  return cartItem?.customization_data ?? cartItem?.customizations ?? {};
+}
+
 function logSupabaseOrderError(action, error, extra = {}) {
   console.error(`Supabase order flow ${action} failed`, {
     message: error?.message,
@@ -176,7 +180,7 @@ function buildOrderPayload(orderInput) {
 }
 
 function buildOrderItemPayload(orderId, cartItem) {
-  const customizationData = sanitizeSerializable(cartItem.customization_data ?? cartItem.customizations ?? {}) || {};
+  const customizationData = sanitizeSerializable(getRawCustomizationData(cartItem)) || {};
 
   return {
     order_id: orderId,
@@ -203,7 +207,7 @@ function extractAssetReferences(value) {
 }
 
 function buildOrderItemAssetsPayload(orderItemId, cartItem) {
-  const customizationData = sanitizeSerializable(cartItem.customization_data ?? cartItem.customizations ?? {}) || {};
+  const customizationData = sanitizeSerializable(getRawCustomizationData(cartItem)) || {};
 
   return Object.values(customizationData)
     .flatMap(extractAssetReferences)
@@ -258,7 +262,7 @@ export async function createOrderWithItems(orderInput, cartItems) {
   }
 
   const finalizedCartItems = await Promise.all((cartItems || []).map(async (item, index) => {
-    const originalCustomizationData = sanitizeSerializable(item.customization_data ?? item.customizations ?? {}) || {};
+    const originalCustomizationData = getRawCustomizationData(item);
     console.log('Order asset upload input', {
       orderId: orderData.id,
       orderNumber: orderData.order_number,

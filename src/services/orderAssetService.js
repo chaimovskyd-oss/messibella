@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabaseClient';
 export const ORDER_ASSETS_BUCKET = 'order-assets';
 const DEFAULT_SIGNED_URL_TTL = 60 * 60;
 
+function isFileInstance(value) {
+  return typeof File !== 'undefined' && value instanceof File;
+}
+
 function logOrderAssetError(action, error, extra = {}) {
   console.error(`Order asset ${action} failed`, {
     message: error?.message,
@@ -18,7 +22,12 @@ export function isOrderAssetReference(value) {
   return Boolean(
     value
     && typeof value === 'object'
-    && (typeof value.file_path === 'string' || typeof value.file_url === 'string')
+    && (
+      isFileInstance(value.pending_file)
+      || (typeof value.file_path === 'string' && value.file_path.trim() !== '')
+      || (typeof value.file_url === 'string' && value.file_url.trim() !== '')
+      || (typeof value.preview_url === 'string' && value.preview_url.startsWith('blob:'))
+    )
   );
 }
 
