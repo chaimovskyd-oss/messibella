@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp } from 'lucide-react';
 import { createPageUrl } from '@/utils';
+import { resolveProductImage } from '@/utils/imageResolver';
 
 const tagConfig = {
   best_seller: { label: 'הכי נמכר', color: 'bg-[#F5B731] text-white' },
@@ -29,7 +30,7 @@ export default function ProductCard({ product, index = 0 }) {
       >
         <div className="relative aspect-square overflow-hidden bg-gray-50">
           <img
-            src={product.main_image || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400'}
+            src={resolveProductImage(product.main_image)}
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />

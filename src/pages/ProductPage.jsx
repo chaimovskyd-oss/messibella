@@ -11,6 +11,7 @@ import QuantityDiscountTable from '@/components/store/QuantityDiscountTable';
 import { useCart } from '@/components/store/CartContext';
 import { createPageUrl } from '@/utils';
 import { getCategoryLineage, getCategoryMap } from '@/utils/categories';
+import { resolveProductImage } from '@/utils/imageResolver';
 import { getCategories, getProducts, getReviews } from '@/data/store';
 
 const tagConfig = {
@@ -84,7 +85,11 @@ export default function ProductPage() {
       .slice(0, 4);
   }, [allProducts, categories, product]);
 
-  const images = product ? [product.main_image, ...(product.gallery || [])].filter(Boolean) : [];
+  const images = product
+    ? [product.main_image, ...(product.gallery || [])]
+        .filter(Boolean)
+        .map(resolveProductImage)
+    : [];
 
   const handleAddToCart = () => {
     addToCart(product, quantity, { ...customizations, ...(selectedDesign ? { עיצוב: selectedDesign } : {}) });
@@ -139,7 +144,7 @@ export default function ProductPage() {
           <div className="min-w-0">
             <div className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 aspect-square mb-4">
               <img
-                src={images[selectedImage] || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800'}
+                src={images[selectedImage] ?? resolveProductImage(null)}
                 alt={product.name}
                 className="w-full h-full object-cover"
               />

@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Minus, Plus, Trash2 } from 'lucide-react';
 import { useCart } from './CartContext';
+import { resolveProductImage } from '@/utils/imageResolver';
 
 export default function CartItem({ item }) {
   const { updateQuantity, removeFromCart, getDiscountedPrice, getItemTotal } = useCart();
@@ -12,7 +13,7 @@ export default function CartItem({ item }) {
     <div className="flex flex-col sm:flex-row gap-4 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm overflow-hidden">
       <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 bg-gray-50">
         <img
-          src={item.main_image || 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=200'}
+          src={resolveProductImage(item.main_image)}
           alt={item.product_name}
           className="w-full h-full object-cover"
         />

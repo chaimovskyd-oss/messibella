@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { createPendingOrderAsset } from '@/services/uploadService';
+import { resolveProductImage } from '@/utils/imageResolver';
 import { Loader2, Plus, Trash2, Upload, X, ZoomIn } from 'lucide-react';
 
 const colorOptions = {
@@ -176,7 +177,7 @@ export default function ProductCustomization({ options, values, onChange, design
                     selectedDesign === design.name ? 'border-[#B68AD8] shadow-lg scale-105' : 'border-gray-200 hover:border-[#B68AD8]/50'
                   }`}
                 >
-                  <img src={design.image_url} alt={design.name} className="w-full h-full object-cover" />
+                  <img src={resolveProductImage(design.image_url)} alt={design.name} className="w-full h-full object-cover" />
                   <div className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-xs py-1 text-center">{design.name}</div>
                   {selectedDesign === design.name && (
                     <div className="absolute top-1 right-1 bg-[#B68AD8] rounded-full w-5 h-5 flex items-center justify-center">
@@ -204,7 +205,7 @@ export default function ProductCustomization({ options, values, onChange, design
         <DialogContent className="max-w-lg w-[calc(100vw-2rem)] p-0 overflow-hidden rounded-2xl">
           {previewDesign && (
             <div>
-              <img src={previewDesign.image_url} alt={previewDesign.name} className="w-full object-contain max-h-[70vh]" />
+              <img src={resolveProductImage(previewDesign.image_url)} alt={previewDesign.name} className="w-full object-contain max-h-[70vh]" />
               <div className="p-4 flex items-center justify-between">
                 <span className="font-bold text-lg">{previewDesign.name}</span>
                 <Button
