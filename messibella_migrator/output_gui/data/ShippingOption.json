@@ -1,0 +1,29 @@
+[
+  {
+    "id": "shipping-delivery",
+    "name": "משלוח עד הבית",
+    "type": "delivery",
+    "price": 30,
+    "free_above": 200,
+    "estimated_days": "3-5 ימי עסקים",
+    "is_active": true
+  },
+  {
+    "id": "shipping-pickup-point",
+    "name": "נקודת איסוף",
+    "type": "pickup_point",
+    "price": 15,
+    "free_above": null,
+    "estimated_days": "2-4 ימי עסקים",
+    "is_active": true
+  },
+  {
+    "id": "shipping-self-pickup",
+    "name": "איסוף עצמי",
+    "type": "self_pickup",
+    "price": 0,
+    "free_above": null,
+    "estimated_days": "1-2 ימי עסקים",
+    "is_active": true
+  }
+]

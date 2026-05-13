@@ -4,6 +4,11 @@ import { getDefaultCollection } from '@/data/defaultContent';
 const STORAGE_BUCKET = import.meta.env.VITE_SITE_CONTENT_BUCKET || 'site-content';
 const STORAGE_KEY_PREFIX = 'masibala_remote_';
 
+// Supabase is considered "configured" only when both env vars are present at
+// build time. Without them the client still constructs but all requests fail.
+const SUPABASE_ENABLED =
+  !!import.meta.env.VITE_SUPABASE_URL && !!import.meta.env.VITE_SUPABASE_KEY;
+
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
@@ -11,10 +16,6 @@ function clone(value) {
 function getLocalStorage() {
   if (typeof window === 'undefined') return null;
   return window.localStorage;
-}
-
-function getCollectionPath(entityName) {
-  return `${entityName}.json`;
 }
 
 function readLocalBackup(entityName, fallback) {
@@ -49,47 +50,76 @@ function logContentError(action, error, extra = {}) {
   });
 }
 
+/**
+ * Load a collection using a three-tier priority:
+ *
+ *  1. Static local file  /data/<EntityName>.json  (always works in production,
+ *     populated by scripts/generate-static-content.js and served via publicDir)
+ *  2. Supabase storage   (optional — only when VITE_SUPABASE_URL/KEY are set,
+ *     used to pick up live admin edits without a redeploy)
+ *  3. In-memory defaults from src/data/ and defaultContent.js
+ */
 export async function getCollection(entityName) {
   const fallback = getDefaultCollection(entityName);
-  const path = getCollectionPath(entityName);
 
+  // ── 1. Static local file ────────────────────────────────────────────────
   try {
-    const { data, error } = await supabase.storage.from(STORAGE_BUCKET).download(path);
-    if (error) {
-      if (error.message?.includes('Object not found')) {
-        return readLocalBackup(entityName, fallback);
-      }
-      throw error;
+    const res = await fetch(`/data/${entityName}.json`);
+    if (res.ok) {
+      const parsed = await res.json();
+      // Warm the localStorage cache so Supabase writes are still visible if
+      // the user subsequently updates content through the admin panel.
+      writeLocalBackup(entityName, parsed);
+      return parsed;
     }
-
-    const text = await data.text();
-    const parsed = JSON.parse(text);
-    writeLocalBackup(entityName, parsed);
-    return parsed;
-  } catch (error) {
-    logContentError('download', error, { entityName, path });
-    return readLocalBackup(entityName, fallback);
+  } catch {
+    // file not found or network error — continue to next tier
   }
+
+  // ── 2. Supabase storage (optional) ──────────────────────────────────────
+  if (SUPABASE_ENABLED) {
+    try {
+      const { data, error } = await supabase.storage
+        .from(STORAGE_BUCKET)
+        .download(`${entityName}.json`);
+
+      if (!error && data) {
+        const text = await data.text();
+        const parsed = JSON.parse(text);
+        writeLocalBackup(entityName, parsed);
+        return parsed;
+      }
+    } catch (error) {
+      logContentError('download', error, { entityName });
+    }
+  }
+
+  // ── 3. localStorage backup or in-memory defaults ─────────────────────────
+  return readLocalBackup(entityName, fallback);
 }
 
 export async function saveCollection(entityName, items) {
-  const path = getCollectionPath(entityName);
   const payload = clone(items);
   const file = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
 
   writeLocalBackup(entityName, payload);
 
-  try {
-    const { error } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file, {
-      upsert: true,
-      contentType: 'application/json',
-    });
+  if (!SUPABASE_ENABLED) {
+    console.warn(`saveCollection(${entityName}): Supabase not configured — saved to localStorage only.`);
+    return payload;
+  }
 
-    if (error) {
-      throw error;
-    }
+  try {
+    const { error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(`${entityName}.json`, file, {
+        upsert: true,
+        contentType: 'application/json',
+      });
+
+    if (error) throw error;
   } catch (error) {
-    logContentError('upload', error, { entityName, path, itemCount: payload.length });
+    logContentError('upload', error, { entityName, itemCount: payload.length });
   }
 
   return payload;
@@ -104,6 +134,10 @@ function extractExtension(file) {
 }
 
 export async function uploadSiteAsset(file, folder = 'site-assets') {
+  if (!SUPABASE_ENABLED) {
+    throw new Error('uploadSiteAsset: Supabase is not configured.');
+  }
+
   const extension = extractExtension(file);
   const assetPath = `${folder}/${crypto.randomUUID()}.${extension}`;
 

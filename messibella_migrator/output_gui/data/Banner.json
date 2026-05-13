@@ -1,0 +1,13 @@
+[
+  {
+    "id": "banner-hero-local",
+    "title": "מוצרים ממותגים לילדים ולגנים",
+    "subtitle": "קטלוג מקומי עם התאמה אישית, תיקים, בקבוקים ומתנות",
+    "image_url": "https://images.unsplash.com/photo-1516627145497-ae6968895b74?w=1200",
+    "button_text": "לצפייה במוצרים",
+    "button_link": "Catalog",
+    "type": "hero",
+    "is_active": true,
+    "display_order": 1
+  }
+]
