@@ -3,8 +3,6 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { LayoutDashboard, Package, FolderOpen, Image, ShoppingCart, Truck, Tag, Star, ArrowRight, BookOpen, Images } from 'lucide-react';
 
-const LOGO_URL = "https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/user_67d6827d7b459e772fe40b45/ab330f83c_logo.png";
-
 const menuItems = [
   { label: 'דשבורד', page: 'AdminDashboard', icon: LayoutDashboard },
   { label: 'מוצרים', page: 'AdminProducts', icon: Package },
@@ -22,7 +20,12 @@ export default function AdminSidebar({ currentPage }) {
   return (
     <aside className="w-64 bg-white border-l border-gray-200 min-h-screen p-4 hidden md:block">
       <div className="mb-6">
-        <img src={LOGO_URL} alt="מסיבלה" className="h-12 mb-2" />
+        <div className="inline-flex items-center gap-2 text-gray-900 mb-2" aria-label="Messibella">
+          <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-[#F5B731] via-[#B68AD8] to-[#1CA3A9] text-white font-black shadow">
+            M
+          </span>
+          <strong className="text-base tracking-wide">MESSIBELLA</strong>
+        </div>
         <p className="text-xs text-gray-400">ניהול החנות</p>
       </div>
       

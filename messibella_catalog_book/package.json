@@ -1,0 +1,23 @@
+{
+  "name": "messibella-digital-catalog-book",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "clean": "node scripts/clean_catalog.mjs",
+    "clean:apply": "node scripts/clean_catalog.mjs --apply"
+    ,"import:images": "node scripts/import_images.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "framer-motion": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {}
+}

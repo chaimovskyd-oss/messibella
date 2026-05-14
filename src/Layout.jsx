@@ -10,7 +10,19 @@ import { getCategories, getNavMenuItems } from '@/data/store';
 import { getRootCategories, getChildCategories } from '@/utils/categories';
 import { SITE_EMAIL, SITE_PHONE, SITE_PHONE_DISPLAY } from '@/data/defaultContent';
 
-const LOGO_URL = 'https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/user_67d6827d7b459e772fe40b45/ab330f83c_logo.png';
+function LogoMark({ inverted = false }) {
+  return (
+    <div className={`inline-flex items-center gap-2 ${inverted ? 'text-white' : 'text-gray-900'}`} aria-label="Messibella">
+      <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-[#F5B731] via-[#B68AD8] to-[#1CA3A9] text-white font-black shadow-lg">
+        M
+      </span>
+      <span className="leading-none">
+        <strong className="block text-lg tracking-wide">MESSIBELLA</strong>
+        <small className={inverted ? 'text-gray-300' : 'text-gray-500'}>Gift catalog</small>
+      </span>
+    </div>
+  );
+}
 
 function CategoriesDropdown({ categories, onNavigate }) {
   const rootCategories = getRootCategories(categories);
@@ -70,15 +82,15 @@ function Navbar({ currentPageName }) {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const isAdminPage = currentPageName?.startsWith('Admin');
-  if (isAdminPage) return null;
-
   const navLinks = useMemo(
     () => navMenuItems
       .filter(item => item.is_active !== false && item.page !== 'Catalog')
       .sort((a, b) => (a.display_order || 0) - (b.display_order || 0)),
     [navMenuItems]
   );
+
+  const isAdminPage = currentPageName?.startsWith('Admin');
+  if (isAdminPage) return null;
 
   const rootCategories = getRootCategories(categories);
 
@@ -144,8 +156,8 @@ function Navbar({ currentPageName }) {
             </Sheet>
           </div>
 
-          <Link to={createPageUrl('Home')} className="flex-shrink min-w-0">
-            <img src={LOGO_URL} alt="מסיבלה" className="h-10 sm:h-12 md:h-16 object-contain" />
+          <Link to={createPageUrl('Home')} className="flex-shrink-0 min-w-0">
+            <LogoMark />
           </Link>
 
           <nav className="hidden md:flex items-center gap-8">
@@ -198,7 +210,9 @@ function Footer() {
       <div className="max-w-7xl mx-auto px-4 py-12">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8">
           <div>
-            <img src={LOGO_URL} alt="מסיבלה" className="h-16 mb-4 brightness-0 invert" />
+            <div className="mb-4">
+              <LogoMark inverted />
+            </div>
             <p className="text-gray-400 text-sm">
               מתנות ממותגות לגני ילדים, התאמות אישיות, בקבוקים, תיקים, מתנות סוף שנה והמון השראה.
             </p>

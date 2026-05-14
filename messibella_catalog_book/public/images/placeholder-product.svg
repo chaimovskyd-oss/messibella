@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe4e6"/><stop offset=".5" stop-color="#fef9c3"/><stop offset="1" stop-color="#dbeafe"/></linearGradient></defs>
+  <rect width="900" height="700" rx="48" fill="url(#g)"/>
+  <rect x="250" y="185" width="400" height="330" rx="36" fill="white" opacity=".75"/>
+  <circle cx="366" cy="302" r="50" fill="#e11d48" opacity=".55"/>
+  <path d="M288 462l126-118 88 82 62-58 48 94H288z" fill="#2563eb" opacity=".45"/>
+  <text x="450" y="575" text-anchor="middle" font-family="Arial" font-size="34" font-weight="700" fill="#475569">Messibella</text>
+</svg>
