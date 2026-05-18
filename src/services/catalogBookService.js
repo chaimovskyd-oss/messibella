@@ -139,6 +139,13 @@ export function mapProduct(product, index = 0) {
   };
 }
 
+function chapterPriority(title) {
+  const lower = String(title || '').toLowerCase();
+  if (lower.includes('מתנות סוף שנה')) return 1;
+  if (lower.includes('יום הולדת') || lower.includes('ימי הולדת')) return 2;
+  return 99;
+}
+
 export function buildCategoryChapters(products) {
   const grouped = new Map();
 
@@ -157,7 +164,13 @@ export function buildCategoryChapters(products) {
       theme: SECTION_THEMES[index % SECTION_THEMES.length],
       products: uniqueBy(items, (product) => product.id).slice(0, 64),
     }))
-    .filter((chapter) => chapter.products.length > 0);
+    .filter((chapter) => chapter.products.length > 0)
+    .sort((a, b) => {
+      const priorityA = chapterPriority(a.title);
+      const priorityB = chapterPriority(b.title);
+      if (priorityA !== priorityB) return priorityA - priorityB;
+      return a.title.localeCompare(b.title, 'he');
+    });
 }
 
 export function normalizeCatalog(rawCatalog) {

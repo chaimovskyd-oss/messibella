@@ -97,7 +97,7 @@ function Navbar({ currentPageName }) {
   return (
     <header className={`sticky top-0 z-50 transition-all duration-300 ${isScrolled ? 'bg-white/95 backdrop-blur-md shadow-lg' : 'bg-white shadow-sm'}`}>
       <div className="bg-gradient-to-l from-[#F5B731] to-[#B68AD8] text-white text-sm py-1.5 px-4 text-center font-medium">
-        <span className="block truncate">משלוח חינם בהזמנה מעל ₪200 | {SITE_PHONE_DISPLAY} | {SITE_EMAIL}</span>
+        <span className="block truncate">{SITE_PHONE_DISPLAY} | {SITE_EMAIL}</span>
       </div>
 
       <div className="max-w-7xl mx-auto px-4">
