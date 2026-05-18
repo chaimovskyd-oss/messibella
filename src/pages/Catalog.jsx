@@ -16,7 +16,6 @@ import {
 } from 'lucide-react';
 import {
   PLACEHOLDER_IMAGE,
-  SORT_OPTIONS,
   cleanText,
   createWhatsAppUrl,
   normalizeCatalog,
@@ -69,11 +68,7 @@ function ProductTile({ product, index, onOpen, isFavorite, onToggleFavorite }) {
       <div className="catalog-product-body">
         <div className="catalog-product-kicker">
           <span>{product.priceLabel}</span>
-          {product.groupedCount > 1 ? (
-            <small>{product.groupedCount.toLocaleString('he-IL')} עיצובים</small>
-          ) : product.images.length > 1 ? (
-            <small>{product.images.length.toLocaleString('he-IL')} תמונות</small>
-          ) : null}
+          {product.images.length > 1 ? <small>{product.images.length} images</small> : null}
         </div>
         <h3>{product.title}</h3>
         <p>{product.description || 'A personalized Messibella gift ready for custom details.'}</p>
@@ -88,7 +83,7 @@ function ProductTile({ product, index, onOpen, isFavorite, onToggleFavorite }) {
             onClick={(event) => event.stopPropagation()}
           >
             <MessageCircle size={16} />
-            שליחה בוואטסאפ
+            Send on WhatsApp
           </a>
         </div>
       </div>
@@ -204,7 +199,7 @@ function ProductModal({ product, onClose, onToggleFavorite, isFavorite }) {
 
             {designs.length > 0 && (
               <div className="catalog-designs">
-                <h3>עיצובים ודגמים בקבוצה</h3>
+                <h3>Designs and variants</h3>
                 <div>
                   {designs.slice(0, 16).map((design, index) => (
                     <span key={`${design.label || design.name || design.design_label}-${index}`}>
@@ -218,15 +213,15 @@ function ProductModal({ product, onClose, onToggleFavorite, isFavorite }) {
             <div className="catalog-modal-actions">
               <a href={createWhatsAppUrl(product)} target="_blank" rel="noreferrer">
                 <MessageCircle size={18} />
-                שליחה בוואטסאפ
+                Send on WhatsApp
               </a>
               <button type="button" onClick={() => onToggleFavorite(product.id)} className={isFavorite ? 'active' : ''}>
                 <Heart size={18} fill={isFavorite ? 'currentColor' : 'none'} />
-                שמירה
+                Save
               </button>
               <button type="button" onClick={shareProduct}>
                 <Share2 size={18} />
-                שיתוף
+                Share
               </button>
             </div>
           </div>
@@ -240,9 +235,6 @@ export default function Catalog() {
   const [catalog, setCatalog] = useState(null);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
-  const [categoryId, setCategoryId] = useState('all');
-  const [sortBy, setSortBy] = useState('recommended');
-  const [onlyGrouped, setOnlyGrouped] = useState(false);
   const [activeChapter, setActiveChapter] = useState('');
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [favorites, setFavorites] = useState(() => new Set(JSON.parse(localStorage.getItem('messibella:favorites') || '[]')));
@@ -274,20 +266,8 @@ export default function Catalog() {
   }, []);
 
   const chapters = catalog?.chapters || [];
-  const categories = catalog?.categories || [];
-  const visibleChapters = useMemo(
-    () => searchCatalog(chapters, query, { categoryId, sortBy, onlyGrouped }),
-    [chapters, query, categoryId, sortBy, onlyGrouped]
-  );
+  const visibleChapters = useMemo(() => searchCatalog(chapters, query), [chapters, query]);
   const allProducts = catalog?.products || [];
-  const visibleCount = useMemo(
-    () => visibleChapters.reduce((total, chapter) => total + chapter.products.length, 0),
-    [visibleChapters]
-  );
-  const groupedCount = useMemo(
-    () => allProducts.filter((product) => Number(product.groupedCount || 1) > 1).length,
-    [allProducts]
-  );
   const favoriteProducts = useMemo(() => allProducts.filter((product) => favorites.has(product.id)).slice(0, 8), [allProducts, favorites]);
   const recentProducts = useMemo(() => recentIds.map((id) => allProducts.find((product) => product.id === id)).filter(Boolean).slice(0, 8), [allProducts, recentIds]);
   const inspirationProducts = useMemo(() => {
@@ -367,7 +347,7 @@ export default function Catalog() {
     return (
       <div className="catalog-state" dir="rtl">
         <BookOpen size={42} />
-        <h1>הקטלוג לא זמין</h1>
+        <h1>Catalog unavailable</h1>
         <p>{error}</p>
       </div>
     );
@@ -377,7 +357,7 @@ export default function Catalog() {
     return (
       <div className="catalog-state" dir="rtl">
         <Loader2 className="catalog-spin" size={38} />
-        <h1>טוען קטלוג</h1>
+        <h1>Loading the catalog</h1>
       </div>
     );
   }
@@ -396,7 +376,7 @@ export default function Catalog() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="חיפוש מוצר, עיצוב, קטגוריה..."
+            placeholder="Search products, tags, categories..."
           />
         </label>
       </header>
@@ -404,14 +384,14 @@ export default function Catalog() {
       <section id="catalog-cover" className="catalog-cover">
         <div className="catalog-cover-bg" />
         <motion.div className="catalog-cover-copy" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}>
-          <span><Sparkles size={16} /> קטלוג דיגיטלי</span>
+          <span><Sparkles size={16} /> Digital gift catalog</span>
           <h1>Messibella</h1>
           <p>
-            קטלוג מתנות ממותגות שמסודר לפי קטגוריות, משפחות מוצרים ועיצובים לבחירה מהירה.
+            A soft, visual catalog book for personal gifts, custom designs and seasonal inspiration.
           </p>
           <div>
             <button type="button" onClick={() => scrollTo('catalog-contents')}>
-              כניסה לקטלוג
+              Enter Catalog
               <ChevronLeft size={19} />
             </button>
             <a href={`https://wa.me/972559891243`} target="_blank" rel="noreferrer">
@@ -424,8 +404,8 @@ export default function Catalog() {
         <motion.div className="catalog-cover-book" initial={{ opacity: 0, rotate: -2, y: 26 }} animate={{ opacity: 1, rotate: 0, y: 0 }}>
           <div className="catalog-cover-page">
             <strong>2026</strong>
-            <h2>מתנות אישיות, מסודרות כמו ספר בחירה</h2>
-            <p>{catalog.products.length.toLocaleString('he-IL')} משפחות מוצרים בתוך {chapters.length.toLocaleString('he-IL')} קטגוריות</p>
+            <h2>Personalized gifts, arranged like a book</h2>
+            <p>{catalog.products.length.toLocaleString('he-IL')} products across {chapters.length} chapters</p>
             <div>
               {coverProducts.map((product, index) => (
                 <CatalogImage key={product.id} src={product.mainImage} alt={product.title} eager={index < 2} />
@@ -438,61 +418,16 @@ export default function Catalog() {
       <section id="catalog-contents" className="catalog-contents">
         <div className="catalog-section-shell">
           <div className="catalog-section-heading">
-            <span>תוכן עניינים</span>
-            <h2>בחרו קטגוריה</h2>
-            <p>הקטלוג עכשיו מקובץ למשפחות מוצרים: פחות כפילויות, יותר קל למצוא עיצוב, מחיר וקטגוריה.</p>
-          </div>
-          <div className="catalog-organizer">
-            <div className="catalog-summary">
-              <strong>{visibleCount.toLocaleString('he-IL')}</strong>
-              <span>תוצאות מוצגות</span>
-              <strong>{groupedCount.toLocaleString('he-IL')}</strong>
-              <span>משפחות מאוחדות</span>
-            </div>
-            <div className="catalog-filter-row" aria-label="סינון קטגוריות">
-              <button
-                type="button"
-                className={categoryId === 'all' ? 'active' : ''}
-                onClick={() => setCategoryId('all')}
-              >
-                הכל
-              </button>
-              {categories.map((category) => (
-                <button
-                  type="button"
-                  key={category.id}
-                  className={categoryId === category.id ? 'active' : ''}
-                  onClick={() => setCategoryId(category.id)}
-                >
-                  {category.label}
-                  <small>{category.count.toLocaleString('he-IL')}</small>
-                </button>
-              ))}
-            </div>
-            <div className="catalog-control-row">
-              <label>
-                <span>מיון</span>
-                <select value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-                  {SORT_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </label>
-              <button
-                type="button"
-                className={`catalog-toggle ${onlyGrouped ? 'active' : ''}`}
-                onClick={() => setOnlyGrouped((value) => !value)}
-              >
-                רק משפחות מוצרים
-              </button>
-            </div>
+            <span>Table of contents</span>
+            <h2>Choose a chapter</h2>
+            <p>Jump into a category, browse visually, and open any product for gallery and ordering details.</p>
           </div>
           <div className="catalog-toc-list">
-            {visibleChapters.map((chapter) => (
+            {chapters.map((chapter) => (
               <button type="button" key={chapter.id} onClick={() => scrollTo(chapter.id)}>
                 <strong>{chapter.title}</strong>
                 <i />
-                <span>{chapter.products.length.toLocaleString('he-IL')}</span>
+                <span>p. {chapter.page}</span>
               </button>
             ))}
           </div>
@@ -503,8 +438,8 @@ export default function Catalog() {
         <section className="catalog-inspiration">
           <div className="catalog-section-shell">
             <div className="catalog-section-heading compact">
-              <span>רעיונות שמורים</span>
-              <h2>הבחירות האחרונות שלך</h2>
+              <span>Inspiration pages</span>
+              <h2>Your saved and recent ideas</h2>
             </div>
             <div className="catalog-mini-strip">
               {inspirationProducts.map((product) => (
@@ -523,7 +458,7 @@ export default function Catalog() {
           <Grid3X3 size={18} />
         </button>
         <div>
-          {visibleChapters.slice(0, 18).map((chapter) => (
+          {chapters.slice(0, 18).map((chapter) => (
             <button
               type="button"
               key={chapter.id}
@@ -541,8 +476,8 @@ export default function Catalog() {
       {visibleChapters.length === 0 ? (
         <div className="catalog-empty">
           <Search size={32} />
-          <h2>לא נמצאו מוצרים</h2>
-          <p>נסו לשנות קטגוריה, מיון או מילת חיפוש.</p>
+          <h2>No products found</h2>
+          <p>Try another product name, description, tag or category.</p>
         </div>
       ) : (
         visibleChapters.map((chapter, chapterIndex) => (
@@ -550,11 +485,11 @@ export default function Catalog() {
             <div className="catalog-section-shell">
               <div className="catalog-chapter-title">
                 <div>
-                  <span>קטגוריה {chapterIndex + 1}</span>
+                  <span>Chapter {chapterIndex + 1}</span>
                   <h2>{chapter.title}</h2>
                   <p>{chapter.subtitle}</p>
                 </div>
-                <b>{chapter.products.length.toLocaleString('he-IL')} מוצרים</b>
+                <b>p. {chapter.page}</b>
               </div>
 
               <div className="catalog-editorial-grid">
